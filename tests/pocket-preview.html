@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>落袋与库边回归预览</title>
+<style>
+  body { margin:0; background:#151622; color:#eee; font:14px sans-serif; overflow:hidden; }
+  canvas { display:block; }
+  aside { position:absolute; top:14px; left:14px; padding:14px; border-radius:9px; background:#10241fee; }
+  button,select { margin:5px; padding:7px; } #result { margin-top:8px; }
+</style>
+<canvas id="game-canvas"></canvas>
+<aside>六袋同打 · 使用游戏中的球台、碰撞和灯光<br>
+  <label>力度 <select id="speed"><option>0.5</option><option selected>2</option><option>8</option><option>12</option></select> m/s</label>
+  <label><input id="slow" type="checkbox" checked>慢放 ¼</label><br>
+  <button id="replay">重新试打</button><button id="view">低视角</button>
+  <label><input id="orbit" type="checkbox">转动视角</label>
+  <div id="result" role="status"></div>
+</aside>
+<script type="module">
+import * as THREE from 'three';
+import { SceneManager } from '/src/render/SceneManager.ts';
+import { TableRenderer } from '/src/render/TableRenderer.ts';
+import { Lighting } from '/src/render/Lighting.ts';
+import { PhysicsWorld } from '/src/physics/PhysicsWorld.ts';
+import { BallBody } from '/src/physics/BallBody.ts';
+import { POCKETS } from '/src/physics/TableGeometry.ts';
+import { BALL_RADIUS as R, TABLE_LENGTH as L, TABLE_WIDTH as W } from '/src/constants.ts';
+const scene = new SceneManager('game-canvas'), world = new PhysicsWorld();
+scene.scene.add(new TableRenderer().group); new Lighting(scene.scene);
+const balls = [], meshes = [], result = document.querySelector('#result');
+let pots = 0, falls = 0, age = 0, angle = .25, low = false;
+for (let i = 0; i < 6; i++) {
+  const ball = new BallBody('red-'+i, 'red', {x:0,z:0}, world);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(R,32,24),
+    new THREE.MeshStandardMaterial({color:0xeb2525, roughness:.25}));
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  balls.push(ball); meshes.push(mesh); scene.scene.add(mesh);
+}
+function replay() {
+  world.resetShot(); pots = 0; falls = 0; age = 0;
+  balls.forEach((b,i) => {
+    const p=POCKETS[i], dx=L/2-p.x, dz=W/2-p.z, len=Math.hypot(dx,dz);
+    b.respawn(p.x+dx/len*.18, p.z+dz/len*.18);
+    const speed=Number(document.querySelector('#speed').value);
+    b.setVelocity(-dx/len*speed,0,-dz/len*speed);
+    b.setAngularVelocity(b.velZ/R,0,-b.velX/R);
+  });
+}
+document.querySelector('#replay').onclick = replay;
+document.querySelector('#view').onclick = e => {low=!low; e.target.textContent=low?'俯视角':'低视角';};
+scene.onUpdate(dt => {
+  const simulationDt=dt*(document.querySelector('#slow').checked ? 0.25 : 1);
+  age += simulationDt; world.step(simulationDt);
+  for (const event of world.drainEvents()) {
+    if(event.kind==='pot') pots++;
+    if(event.kind==='fall') falls++;
+  }
+  balls.forEach((b,i) => {meshes[i].visible=!b.isPotted; meshes[i].position.set(b.posX,b.posY,b.posZ);});
+  if (document.querySelector('#orbit').checked) angle += dt*.35;
+  scene.camera.position.set(L/2+Math.sin(angle)*3.6,low ? .48 : 3.1,W/2+Math.cos(angle)*3.6);
+  scene.camera.lookAt(L/2,0,W/2);
+  result.textContent=`模拟 ${age.toFixed(2)} s · 进入袋口 ${falls}/6 · 已进袋 ${pots}/6 · 迭代超限 ${world.collisionBudgetExceeded}`;
+});
+replay(); scene.start();
+</script>
+</html>

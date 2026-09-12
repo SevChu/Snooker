@@ -1,0 +1,36 @@
+Snooker Proprietary License
+Copyright (c) 2026 SevChu. All rights reserved.
+
+Except for separately licensed third-party components, all rights in the
+original Snooker program, source code, and accompanying project materials
+are reserved by SevChu. This project is not open-source software.
+
+You may download and run the official release for personal, non-commercial
+play. You may share unchanged copies of the official release free of charge,
+provided that this license and all third-party notices remain included.
+
+No other permission is granted to modify, publish, redistribute, sublicense,
+sell, commercially exploit, or create derivative works of the original
+program or its source code without prior written permission from SevChu.
+Public availability of the source does not grant an open-source license.
+This notice does not restrict rights required by applicable law or rights
+granted through GitHub's Terms of Service for content hosted on GitHub.
+
+Third-party components remain the property of their respective copyright
+holders and are governed solely by their own licenses. See
+THIRD_PARTY_NOTICES.txt. No exclusive rights are claimed over those components.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NON-INFRINGEMENT. TO THE EXTENT PERMITTED BY LAW, THE COPYRIGHT
+HOLDER IS NOT LIABLE FOR CLAIMS OR DAMAGES ARISING FROM USE OF THE SOFTWARE.
+
+中文说明
+除独立授权的第三方组件外，Snooker 原创程序、源代码及项目资料的版权
+归 SevChu 所有，保留全部权利。本项目不是开源软件。
+允许下载官方发行版用于个人非商业游玩，并在保留完整许可和第三方声明的
+前提下免费分享未经修改的官方发行版。
+除此之外，未经事先书面许可，不授予修改、再发布、再分发、再许可、销售、
+商业利用或制作衍生作品的权利。源码公开可见不等于开放上述授权。
+依法享有的权利、GitHub 服务条款授予的平台内权利和第三方独立许可不受影响。
+本软件按现状提供，在法律允许范围内不提供担保、不承担使用产生的责任。

@@ -1,0 +1,27 @@
+{
+  "name": "snooker-game",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "SevChu",
+  "description": "标准斯诺克游戏 - Standard Snooker Game with WPBSA rules",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:standalone": "tsc && node scripts/build-standalone.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "three": "^0.170.0"
+  }
+}

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>斯诺克 Snooker</title>
+  <style>
+    /* 全局样式 / Global Styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      color: #e0e0e0;
+      user-select: none;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%; height: 100%;
+      position: absolute; top: 0; left: 0;
+    }
+    /* UI 覆盖层 / UI Overlay */
+    #ui-overlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #ui-overlay > * { pointer-events: auto; }
+
+    /* 主菜单 / Main Menu */
+    #main-menu {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(10, 10, 30, 0.92);
+      z-index: 100;
+    }
+    #main-menu h1 {
+      font-size: 3rem; margin-bottom: 0.5rem;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    }
+    #main-menu .subtitle {
+      font-size: 1rem; color: #888; margin-bottom: 2rem;
+    }
+    .menu-section { margin-bottom: 1.5rem; text-align: center; }
+    .menu-section label {
+      display: block; font-size: 0.9rem; color: #aaa; margin-bottom: 0.5rem;
+    }
+    .menu-btn {
+      display: inline-block;
+      padding: 12px 32px; margin: 6px 8px;
+      background: linear-gradient(135deg, #2d5a27 0%, #1a3a15 100%);
+      border: 2px solid #3a7a32; border-radius: 8px;
+      color: #fff; font-size: 1.1rem; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .menu-btn:hover {
+      background: linear-gradient(135deg, #3a7a32 0%, #2d5a27 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(58, 122, 50, 0.4);
+    }
+    .menu-btn.selected {
+      border-color: #ffd700;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+    }
+    .menu-btn-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .start-btn {
+      margin-top: 1.5rem;
+      padding: 14px 48px;
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+      border: none; border-radius: 8px;
+      color: #1a1a2e; font-size: 1.3rem; font-weight: bold;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+    }
+
+    /* 计分板 / Scoreboard */
+    #scoreboard {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      display: none;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid #444; border-radius: 10px;
+      padding: 8px 20px;
+      min-width: 400px;
+    }
+    .score-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .player-score {
+      text-align: center; flex: 1;
+    }
+    .player-score .name { font-size: 0.85rem; color: #aaa; }
+    .player-score .score { font-size: 1.8rem; font-weight: bold; }
+    .player-score.active .score { color: #ffd700; }
+    .score-divider {
+      width: 2px; height: 40px; background: #444;
+    }
+    .frame-info {
+      text-align: center; font-size: 0.75rem; color: #888;
+      margin-top: 4px;
+    }
+
+    /* 旋转选择器 / Spin Selector */
+    #spin-selector {
+      position: absolute; bottom: 20px; right: 20px;
+      width: 120px; height: 120px;
+      display: none;
+    }
+    #spin-selector canvas {
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      cursor: crosshair;
+    }
+
+    /* 信息提示 / Info Message */
+    #info-message {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      background: rgba(0, 0, 0, 0.85);
+      border: 2px solid #ffd700; border-radius: 12px;
+      padding: 20px 40px;
+      text-align: center;
+      z-index: 50;
+    }
+    #info-message h2 { color: #ffd700; margin-bottom: 8px; }
+    #info-message p { color: #ccc; margin-bottom: 12px; }
+    #info-message button {
+      padding: 8px 24px; margin: 4px;
+      background: #2d5a27; border: 1px solid #3a7a32;
+      border-radius: 6px; color: #fff; cursor: pointer;
+      font-size: 0.95rem;
+    }
+    #info-message button:hover { background: #3a7a32; }
+    #info-message.placement-hint {
+      top: 115px; transform: translateX(-50%);
+      width: max-content; max-width: calc(100vw - 32px);
+      padding: 10px 18px; border-width: 1px;
+      pointer-events: none;
+    }
+    #info-message.placement-hint * { pointer-events: none; }
+    #info-message.placement-hint h2 { font-size: 16px; margin-bottom: 4px; }
+    #info-message.placement-hint p { font-size: 13px; margin: 0; }
+    #info-message.placement-hint #msg-buttons { display: none; }
+
+    /* 游戏结束 / Game Over */
+    #game-over {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(10, 10, 30, 0.9);
+      z-index: 90;
+    }
+    #game-over h1 { font-size: 2.5rem; color: #ffd700; margin-bottom: 1rem; }
+    #game-over .final-score { font-size: 1.5rem; margin-bottom: 1.5rem; }
+
+    /* 隐藏类 / Hidden class */
+    .hidden { display: none !important; }
+    #shot-controls { position: absolute; inset: 0; pointer-events: none; color: #e5eadc; }
+    #shot-controls[hidden], #shot-controls [hidden] { display: none; }
+    #shot-controls button, #shot-controls select { padding: 7px 11px; color: #e7e9dc;
+      background: rgba(13, 26, 22, .65); border: 1px solid rgba(174, 194, 173, .24);
+      border-radius: 6px; font: inherit; font-size: 12px; cursor: pointer; pointer-events: auto; }
+    #shot-controls button:hover, #shot-controls select:hover { background: rgba(40, 62, 46, .92); }
+    #shot-controls :focus-visible { outline: 2px solid #d7ce93; outline-offset: 4px; }
+    #shot-controls button[aria-pressed=true] { color: #e9dc9f; border-color: #9b9464; }
+    #shot-controls button:disabled { opacity: .4; cursor: not-allowed; }
+    .side-control { position: absolute; top: 48%; transform: translateY(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 12px; width: 60px; }
+    .side-control label { font-size: 12px; letter-spacing: 3px; color: #d0d7c9; text-shadow: 0 1px 5px #000; }
+    .power-control { left: 18px; --bar-color: #cfbc7c; }
+    .elevation-control { right: 18px; --bar-color: #b3c7af; }
+    .side-control input[type=range] {
+      writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none;
+      width: 24px; height: clamp(140px, 32vh, 260px); padding: 0; cursor: ns-resize; pointer-events: auto;
+      background: transparent; --fill: 0%; }
+    .side-control input::-webkit-slider-runnable-track { width: 7px; border-radius: 5px;
+      background: linear-gradient(to top, var(--bar-color) var(--fill), rgba(255,255,255,.16) var(--fill));
+      box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 2px 10px rgba(0,0,0,.3); }
+    .side-control input::-webkit-slider-thumb { appearance: none; -webkit-appearance: none;
+      width: 19px; height: 5px; margin-left: -6px; border-radius: 3px; background: #efead5;
+      box-shadow: 0 1px 6px #0008; }
+    .side-control input::-moz-range-track { width: 7px; border-radius: 5px;
+      background: linear-gradient(to top, var(--bar-color) var(--fill), rgba(255,255,255,.16) var(--fill)); }
+    .side-control input::-moz-range-thumb { width: 19px; height: 5px; border: 0; border-radius: 3px; background: #efead5; }
+    #shot-controls #auto-elevate { padding: 4px 9px; font-size: 11px; }
+    .side-caption { font-size: 10px; color: #9da89c; height: 24px; text-shadow: 0 1px 4px #000; }
+    .shot-footer { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      width: max-content; max-width: calc(100vw - 300px); text-align: center; }
+    .target-row, .shot-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; }
+    .target-row { min-height: 25px; margin-bottom: 7px; font-size: 12px; color: #d5d0a9; text-shadow: 0 1px 5px #000; }
+    #shot-controls #change-colour { padding: 3px 8px; font-size: 11px; }
+    #shot-controls #shoot-button { padding-inline: 20px; border-color: #a89c68; color: #e5dba9; }
+    #cue-access { min-height: 20px; font-size: 11px; color: #d5cd9c; text-shadow: 0 1px 5px #000; }
+    #cue-access[data-blocked=true] { color: #ffc08e; }
+    #shot-controls .control-hint { margin-top: 8px; font-size: 10px; color: #9da89c; text-shadow: 0 1px 4px #000; }
+    @media (max-width: 850px) {
+      .power-control { left: 6px; } .elevation-control { right: 6px; }
+      .shot-footer { max-width: calc(100vw - 190px); bottom: 12px; }
+      #spin-selector { width: 85px; height: 85px; right: 10px; bottom: 12px; }
+      #shot-controls .control-hint { display: none; }
+      #shot-controls button, #shot-controls select { padding: 6px 8px; }
+    }
+    @media (max-height: 550px) {
+      .side-control { top: 43%; } .side-control input[type=range] { height: 120px; }
+      .shot-footer { bottom: 8px; } #shot-controls .control-hint { display: none; }
+      #spin-selector { width: 85px; height: 85px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D 渲染画布 / 3D Render Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- UI 覆盖层 / UI Overlay -->
+  <div id="ui-overlay">
+    <!-- 主菜单 / Main Menu -->
+    <div id="main-menu">
+      <h1>斯诺克 Snooker</h1>
+      <p class="subtitle">本地对战 · 三维击球与旋转物理</p>
+
+      <div class="menu-section">
+        <label>游戏模式 / Game Mode</label>
+        <div class="menu-btn-group">
+          <button class="menu-btn" data-mode="ai" id="btn-mode-ai">人机对战 vs AI</button>
+          <button class="menu-btn selected" data-mode="pvp" id="btn-mode-pvp">双人轮流 Pass &amp; Play</button>
+        </div>
+      </div>
+
+      <div class="menu-section" id="difficulty-section" style="display:none">
+        <label>AI 难度 / AI Difficulty</label>
+        <div class="menu-btn-group">
+          <button class="menu-btn" data-diff="easy" id="btn-diff-easy">简单 Easy</button>
+          <button class="menu-btn selected" data-diff="medium" id="btn-diff-medium">中等 Medium</button>
+          <button class="menu-btn" data-diff="hard" id="btn-diff-hard">困难 Hard</button>
+        </div>
+      </div>
+
+      <div class="menu-section">
+        <label>局数 / Frames</label>
+        <div class="menu-btn-group">
+          <button class="menu-btn selected" data-frames="1" id="btn-frames-1">1 局</button>
+          <button class="menu-btn" data-frames="3" id="btn-frames-3">3 局 (Best of 3)</button>
+          <button class="menu-btn" data-frames="5" id="btn-frames-5">5 局 (Best of 5)</button>
+          <button class="menu-btn" data-frames="7" id="btn-frames-7">7 局 (Best of 7)</button>
+        </div>
+      </div>
+
+      <button class="start-btn" id="btn-start">开始游戏 Start Game</button>
+    </div>
+
+    <!-- 计分板 / Scoreboard -->
+    <div id="scoreboard">
+      <div class="score-row">
+        <div class="player-score active" id="player1-score">
+          <div class="name" id="player1-name">Player 1</div>
+          <div class="score" id="player1-points">0</div>
+        </div>
+        <div class="score-divider"></div>
+        <div class="player-score" id="player2-score">
+          <div class="name" id="player2-name">AI / Player 2</div>
+          <div class="score" id="player2-points">0</div>
+        </div>
+      </div>
+      <div class="frame-info" id="frame-info">Frame 1 / 1 | Reds: 15 | Break: 0</div>
+    </div>
+
+    <!-- 旋转选择器 / Spin Selector -->
+    <div id="spin-selector">
+      <canvas id="spin-canvas" width="240" height="240"></canvas>
+    </div>
+
+    <!-- 边缘击球控制 / Peripheral shot controls -->
+    <section id="shot-controls" hidden aria-label="击球控制">
+      <div class="side-control power-control">
+        <label for="shot-power">力度</label>
+        <input id="shot-power" type="range" min="0" max="100" step="0.1" value="15.2"
+          aria-orientation="vertical" title="拖动或滚轮调整力度">
+        <span class="side-caption">滚轮 / ↑ ↓</span>
+      </div>
+      <div class="side-control elevation-control">
+        <label for="cue-elevation">倾角</label>
+        <input id="cue-elevation" type="range" min="0" max="80" step="0.5" value="0"
+          aria-orientation="vertical" title="拖动手动抬杆，点击自动恢复最低可用倾角">
+        <button id="auto-elevate" aria-pressed="true" aria-label="自动调整球杆倾角">自动</button>
+      </div>
+      <div class="shot-footer">
+        <div id="cue-access" role="status"></div>
+        <div class="target-row">
+          <span id="ball-on" aria-live="polite">本杆目标：红球</span>
+          <button id="change-colour" hidden>更换彩球</button>
+        </div>
+        <div class="shot-actions">
+          <button id="aim-minus" aria-label="向左微调" title="向左微调">←</button>
+          <button id="fine-aim" aria-pressed="false">精瞄 · F</button>
+          <button id="aim-plus" aria-label="向右微调" title="向右微调">→</button>
+          <select id="bridge-kind" aria-label="球杆支撑">
+            <option value="hand">手架</option><option value="rest">十字架杆</option><option value="spider">高架杆</option>
+          </select>
+          <button id="shoot-button">出杆 · 空格</button>
+        </div>
+        <div class="control-hint">拖动瞄准 · Shift 精瞄 · ← → 微调 · 右下角选择击球点</div>
+      </div>
+    </section>
+    <div id="info-message">
+      <h2 id="msg-title"></h2>
+      <p id="msg-body"></p>
+      <div id="msg-buttons"></div>
+    </div>
+
+    <!-- 游戏结束 / Game Over -->
+    <div id="game-over">
+      <h1 id="game-over-title">比赛结束</h1>
+      <div class="final-score" id="game-over-score"></div>
+      <div class="menu-btn-group">
+        <button class="menu-btn" id="btn-play-again">再来一局 Play Again</button>
+        <button class="menu-btn" id="btn-back-menu">返回菜单 Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主入口脚本 / Main Entry Script -->
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

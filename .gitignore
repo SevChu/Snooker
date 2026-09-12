@@ -1,0 +1,7 @@
+node_modules/
+dist/
+release/
+*.zip
+*.pdf
+*.local
+.DS_Store
