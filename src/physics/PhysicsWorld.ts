@@ -1,7 +1,7 @@
 import {
   BALL_RADIUS as R, CUSHION_JAW_RADIUS, CUSHION_NOSE_HEIGHT, PHYSICS_TIMESTEP,
   PHYSICS_MAX_ITERATIONS, GRAVITY, TABLE_LENGTH as L, TABLE_WIDTH as W,
-  FRAME_WIDTH, RAIL_TOP_HEIGHT,
+  FRAME_WIDTH, RAIL_TOP_HEIGHT, TOUCHING_BALL_TOLERANCE,
 } from '../constants';
 import type { BallBody } from './BallBody';
 import { applyCloth } from './SpinPhysics';
@@ -13,6 +13,8 @@ export type PhysicsEvent = {
   time: number; ball: BallBody; other?: BallBody; speed: number;
   x: number; y: number; z: number; otherX?: number; otherY?: number; otherZ?: number;
   objectPositions?: Record<string, { x: number; z: number }>;
+  /** Touching objects receiving an impulse before the cue separates. */
+  touchingPushIds?: string[];
 };
 type Hit = { time: number; ball: BallBody; other?: BallBody;
   kind: PhysicsEvent['kind']; nx: number; ny: number; nz: number; surface?: CushionSegment; pocket?: number };
@@ -41,6 +43,7 @@ export class PhysicsWorld {
   private events: PhysicsEvent[] = [];
   private overPairs = new Set<string>();
   private correctionNeeded = true;
+  private initialCueContacts = new Map<string, BallBody>();
   public collisionBudgetExceeded = 0;
 
   addBall(ball: BallBody): void { this.balls.push(ball); this.correctionNeeded = true; }
@@ -49,10 +52,31 @@ export class PhysicsWorld {
   removeAllBalls(): void {
     this.balls = []; this.resetShot(); this.elapsed = 0; this.collisionBudgetExceeded = 0;
   }
-  resetShot(): void { this.accumulator = 0; this.events = []; this.overPairs.clear(); this.correctionNeeded = true; }
+  resetShot(): void {
+    this.accumulator = 0; this.events = []; this.overPairs.clear(); this.correctionNeeded = true;
+    this.initialCueContacts.clear();
+    const cue = this.balls.find(b => b.isCueBall && b.isOnTable && !b.isPotted);
+    if (cue) for (const b of this.balls) {
+      if (b !== cue && b.isOnTable && !b.isPotted &&
+        Math.hypot(b.posX - cue.posX, b.posY - cue.posY, b.posZ - cue.posZ) <= 2 * R + TOUCHING_BALL_TOLERANCE)
+        this.initialCueContacts.set(b.id, b);
+    }
+  }
+  private clearSeparatedContacts(): void {
+    if (!this.initialCueContacts.size) return;
+    const cue = this.balls.find(b => b.isCueBall)!;
+    for (const [id, b] of this.initialCueContacts) {
+      if (!b.isOnTable || !cue.isOnTable || b.isPotted ||
+        Math.hypot(b.posX - cue.posX, b.posY - cue.posY, b.posZ - cue.posZ) > 2 * R + TOUCHING_BALL_TOLERANCE)
+        this.initialCueContacts.delete(id);
+    }
+  }
   drainEvents(): PhysicsEvent[] { const events = this.events; this.events = []; return events; }
   private emit(kind: PhysicsEvent['kind'], b: BallBody, speed: number, time: number, other?: BallBody): void {
     this.events.push({ kind, ball: b, other, speed, time, x: b.posX, y: b.posY, z: b.posZ,
+      touchingPushIds: kind === 'ball' && speed > 1e-10
+        ? [b, other].filter((ball): ball is BallBody => !!ball && this.initialCueContacts.has(ball.id)).map(ball => ball.id)
+        : undefined,
       otherX: other?.posX, otherY: other?.posY, otherZ: other?.posZ,
       objectPositions: kind === 'slate' && b.isCueBall
         ? Object.fromEntries(this.balls.map(ball => [ball.id, { x: ball.posX, z: ball.posZ }])) : undefined });
@@ -101,6 +125,9 @@ export class PhysicsWorld {
         b.integrateOrientation(travel);
       }
       remaining -= travel;
+      // Observe departure at every collision boundary, independent of render FPS.
+      // A later cushion return or cannon is not an initial touching-ball push.
+      this.clearSeparatedContacts();
       if (!hit) break;
       const { ball, other, nx, ny, nz, kind, surface } = hit;
       if (kind === 'ball' || kind === 'cushion') this.correctionNeeded = true;

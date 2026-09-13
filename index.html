@@ -31,25 +31,78 @@
 
     /* 主菜单 / Main Menu */
     #main-menu {
-      position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: rgba(10, 10, 30, 0.92);
-      z-index: 100;
+      --club-ink: #f0ede3; --club-muted: #a3b3a8; --club-copper: #d5b38e;
+      --club-line: #364a40;
+      position: absolute; inset: 0; z-index: 100;
+      display: flex; flex-direction: column; overflow-y: auto;
+      color: var(--club-ink); background: #101b19;
+      background-image: radial-gradient(ellipse at 24% 45%, #20392d80, transparent 58%);
     }
-    #main-menu h1 {
-      font-size: 3rem; margin-bottom: 0.5rem;
-      color: #ffd700;
-      text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    .club-header, .club-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 20px; padding: 25px clamp(24px, 5vw, 88px); flex-shrink: 0;
     }
-    #main-menu .subtitle {
-      font-size: 1rem; color: #888; margin-bottom: 2rem;
-    }
-    .menu-section { margin-bottom: 1.5rem; text-align: center; }
-    .menu-section label {
-      display: block; font-size: 0.9rem; color: #aaa; margin-bottom: 0.5rem;
-    }
+    .club-header { border-bottom: 1px solid var(--club-line); }
+    .club-brand { display: flex; align-items: center; gap: 14px;
+      font-size: 13px; font-weight: 600; letter-spacing: 3px; }
+    .club-monogram { display: grid; place-items: center; width: 38px; height: 38px;
+      border: 1px solid var(--club-copper); border-radius: 50%;
+      color: var(--club-copper); font: 24px Georgia, serif; }
+    .club-header-right { display: flex; align-items: center; gap: 24px;
+      font-size: 12px; color: var(--club-muted); letter-spacing: 2px; }
+    .club-main { flex: 1 0 auto; width: min(100%, 1380px); margin: auto;
+      padding: 44px clamp(24px, 5vw, 88px); display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr);
+      align-items: center; gap: clamp(32px, 5vw, 80px); }
+    .club-story { min-width: 0; }
+    .club-eyebrow { display: flex; align-items: center; gap: 14px;
+      color: var(--club-copper); font-size: 11px; letter-spacing: 3px; }
+    .club-eyebrow::before { content: ''; width: 28px; height: 1px; background: var(--club-copper); }
+    #main-menu h1 { font: 400 clamp(42px, 4.6vw, 70px)/1.23 Georgia, 'Songti SC', 'SimSun', serif;
+      letter-spacing: 1px; margin: 24px 0 18px; color: var(--club-ink); }
+    #main-menu .subtitle { font-size: 14px; color: var(--club-muted); letter-spacing: 2px; }
+    .club-scene { position: relative; height: clamp(210px, 24vw, 320px); margin-top: 25px;
+      overflow: hidden; perspective: 800px; pointer-events: none;
+      background: radial-gradient(ellipse at 54% 52%, #315c3c55, transparent 66%); }
+    .club-table { position: absolute; left: 15%; top: 4%; width: 72%; aspect-ratio: 2 / 1;
+      border: 17px solid #594132; border-radius: 20px;
+      background: linear-gradient(125deg, #2a7454, #143e2d);
+      box-shadow: 0 16px 0 #251e18, 0 30px 28px #0007, inset 0 0 0 6px #153b2b;
+      transform: rotateX(42deg) rotateZ(-25deg); }
+    .club-baulk { position: absolute; left: 21%; top: 5%; height: 90%; border-left: 1px solid #d8e4d966; }
+    .club-d { position: absolute; left: 6%; top: 20%; width: 15%; height: 60%;
+      border: 1px solid #d8e4d966; border-right: 0; border-radius: 100% 0 0 100%; }
+    .club-pocket { position: absolute; width: 17px; height: 17px; background: #080e0b;
+      border-radius: 50%; box-shadow: 0 0 0 3px #b19a71; }
+    .club-pocket:nth-child(1) { left: -8px; top: -8px; }
+    .club-pocket:nth-child(2) { right: -8px; top: -8px; }
+    .club-pocket:nth-child(3) { left: -8px; bottom: -8px; }
+    .club-pocket:nth-child(4) { right: -8px; bottom: -8px; }
+    .club-pocket:nth-child(5) { left: calc(50% - 8px); top: -11px; }
+    .club-pocket:nth-child(6) { left: calc(50% - 8px); bottom: -11px; }
+    .club-ball { position: absolute; left: var(--x); top: var(--y); width: 3.4%; aspect-ratio: 1;
+      border-radius: 50%; transform: translate(-50%, -50%);
+      background: radial-gradient(circle at 30% 25%, #ffb6b0, #b81c2d 38%, #48030b);
+      box-shadow: 3px 4px 4px #0007; }
+    .club-ball.white { background: radial-gradient(circle at 30% 25%, #fff, #e8e5d6 50%, #8b9288); }
+    .club-ball.blue { background: radial-gradient(circle at 30% 25%, #a6d8ff, #1956a0 45%, #102c59); }
+    .club-ball.black { background: radial-gradient(circle at 30% 25%, #899c91, #161c19 40%, #010604); }
+    .club-ball.pink { background: radial-gradient(circle at 30% 25%, #ffd2e2, #d786a9 45%, #8d3d5d); }
+    .club-ball.yellow { background: radial-gradient(circle at 30% 25%, #fff4b8, #d6b63c 45%, #806615); }
+    .club-ball.green { background: radial-gradient(circle at 30% 25%, #95d5a8, #238640 45%, #0b4520); }
+    .club-ball.brown { background: radial-gradient(circle at 30% 25%, #d7ac84, #8c512d 45%, #422718); }
+    .club-cue { position: absolute; left: 4%; top: 72%; height: 5px; width: 69%;
+      background: linear-gradient(90deg, #2d231e 25%, #af8251 26%, #e1c89a 98%, #afc5c0 98%);
+      transform: rotate(-25deg); box-shadow: 0 4px 7px #0006; }
+    .club-scene-label { position: absolute; bottom: 0; left: 0; font-size: 10px;
+      letter-spacing: 3px; color: var(--club-muted); }
+    .club-settings { padding: clamp(24px, 3vw, 38px); background: #172822;
+      border: 1px solid var(--club-line); border-radius: 12px; box-shadow: 0 18px 60px #0002; }
+    .club-settings h2 { font-size: 23px; font-weight: 500; margin-bottom: 8px; }
+    .club-settings-intro { color: var(--club-muted); font-size: 12px; margin-bottom: 28px; }
+    .menu-section { margin-bottom: 23px; }
+    .menu-section label, .menu-label { display: block; font-size: 12px;
+      color: var(--club-muted); margin-bottom: 11px; letter-spacing: 1px; }
     .menu-btn {
       display: inline-block;
       padding: 12px 32px; margin: 6px 8px;
@@ -68,17 +121,58 @@
       box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
     }
     .menu-btn-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-    .start-btn {
-      margin-top: 1.5rem;
-      padding: 14px 48px;
-      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
-      border: none; border-radius: 8px;
-      color: #1a1a2e; font-size: 1.3rem; font-weight: bold;
-      cursor: pointer; transition: all 0.2s;
+    #main-menu .menu-btn-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    #main-menu .menu-btn { margin: 0; padding: 17px 14px; background: #11201b;
+      border: 1px solid var(--club-line); border-radius: 6px; text-align: left;
+      color: var(--club-ink); font-size: 14px; font-family: inherit; }
+    #main-menu .menu-btn:hover { background: #20372c; border-color: #85947e;
+      transform: translateY(-2px); box-shadow: none; }
+    #main-menu .menu-btn.selected { border-color: var(--club-copper);
+      box-shadow: inset 0 0 0 1px var(--club-copper); }
+    .club-mode-icon { display: block; width: 23px; height: 23px; margin-bottom: 12px;
+      color: var(--club-copper); }
+    .club-mode-title { display: block; font-weight: 500; }
+    .club-mode-detail { display: block; margin-top: 6px; color: var(--club-muted); font-size: 11px; }
+    #main-menu #difficulty-section .menu-btn-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    #main-menu #difficulty-section .menu-btn { padding: 11px 8px; font-size: 13px; text-align: center; }
+    .start-btn { display: flex; align-items: center; justify-content: space-between; width: 100%;
+      padding: 15px 18px; background: var(--club-copper); border: none; border-radius: 6px;
+      color: #18221c; font: 600 15px 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      cursor: pointer; transition: background .2s, transform .2s; }
+    .start-btn:hover { background: #e4c6a5; transform: translateY(-2px); }
+    .start-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+    .custom-frames { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    #total-frames { width: 94px; padding: 10px 12px; background: #11201b; color: var(--club-ink);
+      border: 1px solid var(--club-line); border-radius: 6px; font-family: inherit; font-size: 16px; text-align: center; }
+    #main-menu :focus-visible { outline: 2px solid var(--club-copper); outline-offset: 4px; }
+    #total-frames[aria-invalid=true] { border-color: #ed9a80; }
+    #match-format-hint { flex: 1; min-width: 100px; font-size: 13px; color: var(--club-muted); line-height: 1.6; }
+    #match-format-hint[data-invalid=true] { color: #ed9a80; }
+    .club-ready { margin-top: 15px; text-align: center; color: var(--club-muted); font-size: 11px; }
+    .club-footer { border-top: 1px solid var(--club-line); color: var(--club-muted);
+      font-size: 12px; padding-block: 19px; flex-wrap: wrap; }
+    .club-version { font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .club-notices { position: relative; letter-spacing: 0; }
+    .club-notices summary { cursor: pointer; }
+    .club-notices pre { position: absolute; top: 30px; right: 0; z-index: 3;
+      width: min(600px, calc(100vw - 48px)); max-height: 60vh; overflow: auto;
+      padding: 20px; white-space: pre-wrap; user-select: text; font: 12px/1.6 monospace;
+      color: var(--club-ink); background: #172822; border: 1px solid var(--club-line); border-radius: 8px; }
+    @media (max-width: 760px) {
+      .club-main { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 30px; }
+      .club-header { padding-block: 18px; } .club-brand { font-size: 11px; letter-spacing: 2px; }
+      .club-header-note { display: none; } .club-header-right { gap: 0; font-size: 11px; }
+      #main-menu h1 { font-size: 44px; margin-top: 20px; }
+      .club-scene { height: 220px; max-width: 440px; margin: 18px auto 0; }
+      .club-table { top: 8%; } .club-footer { gap: 12px; font-size: 11px; }
     }
-    .start-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+    @media (min-width: 761px) and (max-height: 760px) {
+      .club-header { padding-block: 16px; } .club-main { padding-block: 24px; }
+      .club-settings { padding: 24px; } .club-settings-intro { margin-bottom: 20px; }
+      .menu-section { margin-bottom: 18px; } .club-scene { height: 220px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #main-menu button { transition: none; } #main-menu button:hover { transform: none; }
     }
 
     /* 计分板 / Scoreboard */
@@ -88,7 +182,7 @@
       background: rgba(0, 0, 0, 0.75);
       border: 1px solid #444; border-radius: 10px;
       padding: 8px 20px;
-      min-width: 400px;
+      width: max-content; max-width: calc(100vw - 160px); min-width: min(400px, calc(100vw - 160px));
     }
     .score-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -106,6 +200,74 @@
     .frame-info {
       text-align: center; font-size: 0.75rem; color: #888;
       margin-top: 4px;
+    }
+    #btn-pause { position: absolute; top: 18px; right: 18px; padding: 10px 15px;
+      border: 1px solid #77866c; border-radius: 7px; background: #14251ee8;
+      color: #eee8d7; font-family: inherit; font-size: 13px; cursor: pointer; }
+    #btn-pause[hidden] { display: none; }
+    .game-dialog { margin: auto; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 40px);
+      overflow: auto; padding: 30px; border: 1px solid #53614c; border-radius: 16px;
+      background: #15271f; color: #f0ede3; box-shadow: 0 24px 100px #0008;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+    .game-dialog::backdrop { background: #08130fd6; backdrop-filter: blur(5px); }
+    .game-dialog h2 { font-size: 27px; font-weight: 500; margin: 10px 0; }
+    .dialog-eyebrow { color: #d5b38e; font-size: 11px; letter-spacing: 3px; }
+    .dialog-description { color: #b1bdac; font-size: 13px; line-height: 1.7; }
+    .dialog-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; margin-top: 28px; }
+    .dialog-actions button { border: 1px solid #67735d; border-radius: 6px; padding: 12px 23px;
+      font: inherit; font-size: 14px; color: #e7e9dc; background: #1c3026; cursor: pointer; }
+    .dialog-actions .primary { border-color: #d5b38e; background: #d5b38e; color: #18221c; }
+    .dialog-actions button:hover { filter: brightness(1.12); }
+    .game-dialog :focus-visible, #btn-pause:focus-visible { outline: 2px solid #d5b38e; outline-offset: 4px; }
+    #frame-dialog { width: min(820px, calc(100vw - 32px)); }
+    .frame-result-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+    .frame-result-card { padding: 18px 22px; background: #102018; border: 1px solid #374e3e;
+      border-radius: 9px; min-width: 0; }
+    .frame-result-card.winner { border-color: #d5b38e; }
+    .result-player { font-size: 14px; overflow-wrap: anywhere; color: #b9c6b3; }
+    .result-score { font-size: 44px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+    .result-highest { font-size: 12px; color: #b9c6b3; }
+    .result-highest strong { color: #e4c6a5; font-weight: 500; margin-left: 10px; }
+    .frame-record-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      border-bottom: 1px solid #40523e; padding-bottom: 12px; }
+    .frame-record-heading h3 { font-size: 15px; font-weight: 500; }
+    .frame-record-heading span { font-size: 11px; color: #b1bdac; }
+    #frame-history { list-style: none; margin-top: 4px; }
+    .visit-row { display: grid; grid-template-columns: 126px minmax(0, 1fr) 58px;
+      align-items: center; gap: 15px; padding: 17px 0; border-bottom: 1px solid #304333; }
+    .visit-player { color: #b9c6b3; font-size: 12px; overflow-wrap: anywhere; }
+    .visit-sequence { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .visit-points { color: #e4c6a5; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+    .result-ball { --ball-colour: #c12c37; --ball-highlight: #f38d89; --ball-shadow: #570911;
+      display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 2px 4px #0007;
+      background: radial-gradient(circle at 32% 25%, var(--ball-highlight), var(--ball-colour) 45%, var(--ball-shadow));
+      color: #263326; font: 600 14px 'Segoe UI', sans-serif; }
+    .result-ball.yellow { --ball-colour: #d8bd37; --ball-highlight: #fff4bc; --ball-shadow: #7d6514; }
+    .result-ball.green { --ball-colour: #2b9b58; --ball-highlight: #aae6b2; --ball-shadow: #10482a; }
+    .result-ball.brown { --ball-colour: #9a6138; --ball-highlight: #e1bb86; --ball-shadow: #4b2b17; }
+    .result-ball.blue { --ball-colour: #2560bc; --ball-highlight: #92c1ff; --ball-shadow: #0c2855; }
+    .result-ball.pink { --ball-colour: #d783a2; --ball-highlight: #ffdcdf; --ball-shadow: #843f60; }
+    .result-ball.black { --ball-colour: #222925; --ball-highlight: #919b96; --ball-shadow: #010703; }
+    .result-ball.cue { --ball-colour: #efeee0; --ball-highlight: #fff; --ball-shadow: #b0b7a8; }
+    .result-ball.turn-marker { font-size: 23px; font-weight: 400; }
+    .result-ball.free-ball { outline: 1px dashed #d5b38e; outline-offset: 2px; }
+    .record-legend { margin-top: 17px; display: flex; flex-wrap: wrap; gap: 16px;
+      color: #b1bdac; font-size: 11px; }
+    .record-legend > span { display: flex; align-items: center; gap: 7px; }
+    .record-legend .result-ball { width: 22px; height: 22px; font-size: 12px; }
+    .record-legend .turn-marker { font-size: 20px; }
+    #frame-dialog .dialog-actions { position: sticky; bottom: -30px; background: #15271f;
+      padding-block: 18px; margin-top: 12px; }
+    @media (max-width: 560px) {
+      #scoreboard { left: 10px; transform: none; padding-inline: 10px;
+        min-width: 0; max-width: calc(100vw - 100px); }
+      #btn-pause { right: 10px; padding: 10px; font-size: 12px; }
+      .game-dialog { padding: 22px; } .game-dialog h2 { font-size: 23px; }
+      .frame-result-card { padding: 13px; } .result-score { font-size: 34px; }
+      .visit-row { grid-template-columns: minmax(0, 1fr) 52px; gap: 10px; }
+      .visit-player { grid-column: 1 / -1; } .visit-sequence { gap: 6px; }
+      #frame-dialog .dialog-actions { bottom: -22px; }
     }
 
     /* 旋转选择器 / Spin Selector */
@@ -202,6 +364,8 @@
     #shot-controls #shoot-button { padding-inline: 20px; border-color: #a89c68; color: #e5dba9; }
     #cue-access { min-height: 20px; font-size: 11px; color: #d5cd9c; text-shadow: 0 1px 5px #000; }
     #cue-access[data-blocked=true] { color: #ffc08e; }
+    #touching-info { max-width: 580px; margin: 0 auto 6px; font-size: 12px; line-height: 1.5;
+      color: #eadca1; text-shadow: 0 1px 5px #000; }
     #shot-controls .control-hint { margin-top: 8px; font-size: 10px; color: #9da89c; text-shadow: 0 1px 4px #000; }
     @media (max-width: 850px) {
       .power-control { left: 6px; } .elevation-control { right: 6px; }
@@ -225,37 +389,87 @@
   <div id="ui-overlay">
     <!-- 主菜单 / Main Menu -->
     <div id="main-menu">
-      <h1>斯诺克 Snooker</h1>
-      <p class="subtitle">本地对战 · 三维击球与旋转物理</p>
-
-      <div class="menu-section">
-        <label>游戏模式 / Game Mode</label>
-        <div class="menu-btn-group">
-          <button class="menu-btn" data-mode="ai" id="btn-mode-ai">人机对战 vs AI</button>
-          <button class="menu-btn selected" data-mode="pvp" id="btn-mode-pvp">双人轮流 Pass &amp; Play</button>
-        </div>
-      </div>
-
-      <div class="menu-section" id="difficulty-section" style="display:none">
-        <label>AI 难度 / AI Difficulty</label>
-        <div class="menu-btn-group">
-          <button class="menu-btn" data-diff="easy" id="btn-diff-easy">简单 Easy</button>
-          <button class="menu-btn selected" data-diff="medium" id="btn-diff-medium">中等 Medium</button>
-          <button class="menu-btn" data-diff="hard" id="btn-diff-hard">困难 Hard</button>
-        </div>
-      </div>
-
-      <div class="menu-section">
-        <label>局数 / Frames</label>
-        <div class="menu-btn-group">
-          <button class="menu-btn selected" data-frames="1" id="btn-frames-1">1 局</button>
-          <button class="menu-btn" data-frames="3" id="btn-frames-3">3 局 (Best of 3)</button>
-          <button class="menu-btn" data-frames="5" id="btn-frames-5">5 局 (Best of 5)</button>
-          <button class="menu-btn" data-frames="7" id="btn-frames-7">7 局 (Best of 7)</button>
-        </div>
-      </div>
-
-      <button class="start-btn" id="btn-start">开始游戏 Start Game</button>
+      <header class="club-header">
+        <div class="club-brand"><span class="club-monogram" aria-hidden="true">S</span>THE SNOOKER CLUB</div>
+        <div class="club-header-right"><span class="club-header-note">斯诺克 · 本地对战</span><div id="release-notices"></div></div>
+      </header>
+      <main class="club-main">
+        <section class="club-story" aria-label="斯诺克俱乐部">
+          <div class="club-eyebrow">A GAME OF PRECISION</div>
+          <h1>一方球台。<br>一场较量。</h1>
+          <p class="subtitle">灯光落下，专注这一杆。</p>
+          <div class="club-scene" aria-hidden="true">
+            <div class="club-table">
+              <span class="club-pocket"></span><span class="club-pocket"></span>
+              <span class="club-pocket"></span><span class="club-pocket"></span>
+              <span class="club-pocket"></span><span class="club-pocket"></span>
+              <span class="club-baulk"></span><span class="club-d"></span>
+              <span class="club-ball white" style="--x:28%;--y:65%"></span>
+              <span class="club-ball yellow" style="--x:21%;--y:80%"></span>
+              <span class="club-ball green" style="--x:21%;--y:20%"></span>
+              <span class="club-ball brown" style="--x:21%;--y:50%"></span>
+              <span class="club-ball blue" style="--x:50%;--y:50%"></span>
+              <span class="club-ball pink" style="--x:65%;--y:50%"></span>
+              <span class="club-ball black" style="--x:91%;--y:50%"></span>
+              <span class="club-ball" style="--x:69%;--y:50%"></span>
+              <span class="club-ball" style="--x:72%;--y:46.5%"></span>
+              <span class="club-ball" style="--x:72%;--y:53.5%"></span>
+              <span class="club-ball" style="--x:75%;--y:43%"></span>
+              <span class="club-ball" style="--x:75%;--y:50%"></span>
+              <span class="club-ball" style="--x:75%;--y:57%"></span>
+              <span class="club-ball" style="--x:78%;--y:39.5%"></span>
+              <span class="club-ball" style="--x:78%;--y:46.5%"></span>
+              <span class="club-ball" style="--x:78%;--y:53.5%"></span>
+              <span class="club-ball" style="--x:78%;--y:60.5%"></span>
+              <span class="club-ball" style="--x:81%;--y:36%"></span>
+              <span class="club-ball" style="--x:81%;--y:43%"></span>
+              <span class="club-ball" style="--x:81%;--y:50%"></span>
+              <span class="club-ball" style="--x:81%;--y:57%"></span>
+              <span class="club-ball" style="--x:81%;--y:64%"></span>
+            </div>
+            <div class="club-cue"></div><span class="club-scene-label">THE CLUB TABLE</span>
+          </div>
+        </section>
+        <section class="club-settings" aria-labelledby="club-settings-title">
+          <h2 id="club-settings-title">开启一场对局</h2>
+          <p class="club-settings-intro">选择对手，让较量开始</p>
+          <div class="menu-section">
+            <span class="menu-label" id="mode-label">01 / 对战模式</span>
+            <div class="menu-btn-group" role="group" aria-labelledby="mode-label">
+              <button class="menu-btn" data-mode="ai" id="btn-mode-ai" aria-pressed="false">
+                <svg class="club-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="4"/><path d="M12 2v4M1 11v5m22-5v5M9 16h6"/><circle cx="8.5" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
+                <span class="club-mode-title">人机对战</span><span class="club-mode-detail">挑战电脑对手</span>
+              </button>
+              <button class="menu-btn selected" data-mode="pvp" id="btn-mode-pvp" aria-pressed="true">
+                <svg class="club-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v3"/></svg>
+                <span class="club-mode-title">双人轮流</span><span class="club-mode-detail">与朋友同台较量</span>
+              </button>
+            </div>
+          </div>
+          <div class="menu-section" id="difficulty-section" style="display:none">
+            <span class="menu-label" id="difficulty-label">AI 难度</span>
+            <div class="menu-btn-group" role="group" aria-labelledby="difficulty-label">
+              <button class="menu-btn" data-diff="easy" id="btn-diff-easy" aria-pressed="false">简单</button>
+              <button class="menu-btn selected" data-diff="medium" id="btn-diff-medium" aria-pressed="true">中等</button>
+              <button class="menu-btn" data-diff="hard" id="btn-diff-hard" aria-pressed="false">困难</button>
+            </div>
+          </div>
+          <div class="menu-section">
+            <label for="total-frames">02 / 比赛总局数（正奇数）</label>
+            <div class="custom-frames">
+              <input id="total-frames" type="number" min="1" step="2" value="1"
+                required aria-describedby="match-format-hint">
+              <div id="match-format-hint" role="status" aria-live="polite">1 局 1 胜</div>
+            </div>
+          </div>
+          <button class="start-btn" id="btn-start"><span>开始比赛</span><span aria-hidden="true">↗</span></button>
+          <p class="club-ready">本地对战 · 即刻开球</p>
+        </section>
+      </main>
+      <footer class="club-footer">
+        <span class="club-version" id="game-version" aria-label="当前版本"></span>
+        <span>Copyright 2026 Severus Chu</span>
+      </footer>
     </div>
 
     <!-- 计分板 / Scoreboard -->
@@ -271,8 +485,44 @@
           <div class="score" id="player2-points">0</div>
         </div>
       </div>
-      <div class="frame-info" id="frame-info">Frame 1 / 1 | Reds: 15 | Break: 0</div>
+      <div class="frame-info" id="frame-info">Frame 1 / 1 | Points Remained: 147 | Break: 0</div>
     </div>
+    <button id="btn-pause" hidden>暂停 · Esc</button>
+    <dialog id="pause-dialog" class="game-dialog" aria-labelledby="pause-title" aria-describedby="pause-description">
+      <div class="dialog-eyebrow">TAKE A BREATHER</div>
+      <h2 id="pause-title">比赛已暂停</h2>
+      <p id="pause-description" class="dialog-description">球台会在这里等你。退出将返回首页，本场比赛进度不保留。</p>
+      <div class="dialog-actions">
+        <button id="btn-pause-exit">退出比赛</button><button id="btn-resume" class="primary">继续比赛</button>
+      </div>
+    </dialog>
+    <dialog id="frame-dialog" class="game-dialog" aria-labelledby="frame-result-title" aria-describedby="frame-result-subtitle">
+      <div class="dialog-eyebrow">THE FRAME · RESULTS</div>
+      <h2 id="frame-result-title">本局结算</h2>
+      <p id="frame-result-subtitle" class="dialog-description"></p>
+      <div class="frame-result-scores">
+        <section class="frame-result-card" id="frame-card-0" aria-labelledby="frame-player-0">
+          <h3 class="result-player" id="frame-player-0">Player 1</h3>
+          <div class="result-score" id="frame-score-0">0</div>
+          <div class="result-highest">单杆最高分<strong id="frame-highest-0">0</strong></div>
+        </section>
+        <section class="frame-result-card" id="frame-card-1" aria-labelledby="frame-player-1">
+          <h3 class="result-player" id="frame-player-1">Player 2</h3>
+          <div class="result-score" id="frame-score-1">0</div>
+          <div class="result-highest">单杆最高分<strong id="frame-highest-1">0</strong></div>
+        </section>
+      </div>
+      <div class="frame-record-heading"><h3>本局击球记录</h3><span>按上台顺序 · 右侧为该次单杆得分</span></div>
+      <ol id="frame-history" aria-label="按时间排列的球序列、罚分和交换击球权记录"></ol>
+      <div class="record-legend" aria-label="球图例">
+        <span><span class="result-ball red" aria-hidden="true"></span>得分球</span>
+        <span><span class="result-ball cue" aria-hidden="true">4</span>罚分给对手</span>
+        <span><span class="result-ball cue turn-marker" aria-hidden="true">↻</span>交换击球权</span>
+        <span><span class="result-ball blue free-ball" aria-hidden="true"></span>自由球</span>
+      </div>
+      <div class="dialog-actions"><button id="btn-frame-exit">返回首页</button>
+        <button id="btn-frame-continue" class="primary">下一局</button></div>
+    </dialog>
 
     <!-- 旋转选择器 / Spin Selector -->
     <div id="spin-selector">
@@ -294,6 +544,7 @@
         <button id="auto-elevate" aria-pressed="true" aria-label="自动调整球杆倾角">自动</button>
       </div>
       <div class="shot-footer">
+        <div id="touching-info" role="status" hidden></div>
         <div id="cue-access" role="status"></div>
         <div class="target-row">
           <span id="ball-on" aria-live="polite">本杆目标：红球</span>

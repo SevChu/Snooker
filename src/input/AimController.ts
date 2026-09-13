@@ -16,6 +16,7 @@ export class AimController {
     this.power = (DEFAULT_POWER - MIN_POWER) / (MAX_POWER - MIN_POWER);
   }
   disable(): void { this.enabled = false; this.queuedShot = false; }
+  clearPendingInput(): void { this.queuedShot = false; this.queuedAngle = 0; this.held = {}; }
   getPower(): number { return this.power; }
   getActualPower(): number { return MIN_POWER + this.power * (MAX_POWER - MIN_POWER); }
   setPower(p: number): void { this.power = Math.max(0, Math.min(1, p)); }

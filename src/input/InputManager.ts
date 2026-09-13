@@ -56,6 +56,14 @@ export class InputManager {
   /** 键盘按键状态 / Keyboard key states */
   private keys: Set<string> = new Set();
   private pressedKeys: Set<string> = new Set();
+  private suspended = false;
+
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    this.keys.clear(); this.pressedKeys.clear();
+    this.mouseDown = false; this.mouseDownOnCanvas = false; this.isDragging = false;
+    this.resetFrameDeltas();
+  }
 
   /** 绑定的事件处理函数 (用于清理) / Bound event handlers for cleanup */
   private handlers: Array<{ target: EventTarget; event: string; fn: EventListener }> = [];
@@ -73,6 +81,7 @@ export class InputManager {
 
     // 鼠标移动 / Mouse move
     on(window, 'mousemove', ((e: MouseEvent) => {
+      if (this.suspended) return;
       this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
       this.mouseY = (e.clientY / window.innerHeight) * 2 - 1;
       this.mousePixelX = e.clientX;
@@ -103,6 +112,7 @@ export class InputManager {
     // 仅当按下位置在游戏画布上时才处理，防止 UI 元素 (旋转选择器等) 的点击干扰瞄准
     // Only process when press is on game canvas to prevent UI clicks from affecting aim
     on(window, 'mousedown', ((e: MouseEvent) => {
+      if (this.suspended) return;
       if (e.button !== 0) return; // 仅左键 / Left button only
       if (e.target !== this.canvas) return; // 仅画布上的按下 / Only canvas presses
       this.mouseDown = true;
@@ -116,6 +126,7 @@ export class InputManager {
 
     // 鼠标松开 / Mouse up
     on(window, 'mouseup', ((e: MouseEvent) => {
+      if (this.suspended) return;
       if (e.button !== 0) return; // 仅左键 / Left button only
       this.mouseDown = false;
 
@@ -133,6 +144,8 @@ export class InputManager {
 
     // 鼠标滚轮 / Mouse wheel
     on(window, 'wheel', ((e: WheelEvent) => {
+      if (this.suspended || !(e.target instanceof Node) ||
+          (e.target !== this.canvas && !document.getElementById('shot-controls')?.contains(e.target))) return;
       e.preventDefault();
       // deltaY > 0 表示向下滚动 / deltaY > 0 means scroll down
       this.scrollDelta += e.deltaY;
@@ -140,6 +153,9 @@ export class InputManager {
 
     // 键盘 / Keyboard
     on(window, 'keydown', ((e: KeyboardEvent) => {
+      if (this.suspended) return;
+      if (e.target instanceof HTMLElement && (e.target.closest('dialog') ||
+          (e.target.closest('button') && e.code === 'Space'))) return;
       if (e.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
       if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressedKeys.add(e.code);

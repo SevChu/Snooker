@@ -66,6 +66,8 @@ export enum GameState {
   MISS_CHOICE = 'miss_choice',
   /** 自由球选择中 / Free ball selection */
   FREE_BALL_SELECT = 'free_ball_select',
+  /** Frame result awaits the player's acknowledgement before re-racking. */
+  FRAME_OVER = 'frame_over',
   /** 比赛结束 / Match over */
   GAME_OVER = 'game_over',
 }

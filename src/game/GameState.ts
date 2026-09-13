@@ -35,6 +35,8 @@ import {
 import { RulesEngine, ShotTracker } from './RulesEngine';
 import { BallBody } from '../physics/BallBody';
 import { gameEvents } from '../utils/EventEmitter';
+import { framesToWin } from './MatchFormat';
+import { FrameRecord, type FrameSummary } from './FrameRecord';
 
 export class GameStateManager {
   /** 当前游戏状态 / Current game state */
@@ -52,6 +54,8 @@ export class GameStateManager {
   /** 上一次击球结果 / Last shot result */
   public lastShotResult: ShotResult | null = null;
   private preShotFrame: FrameState | null = null;
+  public frameRecord = new FrameRecord();
+  public frameSummary: FrameSummary | null = null;
 
   constructor() {
     this.rulesEngine = new RulesEngine();
@@ -78,7 +82,9 @@ export class GameStateManager {
    * 开始新比赛 / Start a new match
    */
   startMatch(config: GameConfig): void {
+    framesToWin(config.totalFrames); // Validate before replacing an existing match.
     this.lastShotResult = null; this.shotTracker = null; this.preShotFrame = null;
+    this.frameRecord = new FrameRecord(); this.frameSummary = null;
     this.match = {
       mode: config.mode,
       difficulty: config.difficulty,
@@ -141,6 +147,7 @@ export class GameStateManager {
       cueBallPotted: false,
       ballsOffTable: [],
       wasSnookered: snookerDetector.isSnookered(cueBall, ballOn, allBalls),
+      touching: this.match ? this.rulesEngine.getTouchingBall().startShot(cueBall, allBalls, this.match.frame) : undefined,
     };
 
     // 清除碰撞记录 / Clear collision records
@@ -169,9 +176,15 @@ export class GameStateManager {
     this.shotTracker.allBallsContacted.add(otherBall.id);
   }
 
-  /**
-   * 记录进球事件 / Record potting event
-   */
+  /** Record only physical impulses during the initial touching contact. */
+  recordTouchingPush(ids: string[]): void {
+    const touching = this.shotTracker?.touching;
+    for (const id of ids) {
+      if (touching?.balls.some(b => b.id === id)) touching.pushedIds.add(id);
+    }
+  }
+
+  /** 记录进球事件 / Record potting event */
   recordPot(ball: BallBody): void {
     if (!this.shotTracker) return;
 
@@ -187,6 +200,7 @@ export class GameStateManager {
    * Evaluate shot result (called when all balls stop)
    */
   evaluateShot(allBalls: BallBody[], cueBall: BallBody): ShotResult {
+    if (this.frameSummary) return this.lastShotResult ?? this.createEmptyResult();
     if (!this.match || !this.shotTracker) {
       return this.createEmptyResult();
     }
@@ -210,6 +224,7 @@ export class GameStateManager {
   private applyShotResult(result: ShotResult, allBalls: BallBody[]): void {
     if (!this.match) return;
     const frame = this.match.frame;
+    this.frameRecord.recordShot(frame, result);
     const beforeObjects = frame.balls.filter(b => b.type !== BallType.CUE && b.isOnTable && !b.isPotted);
     const decidingBlack = beforeObjects.length === 1 && beforeObjects[0].type === BallType.BLACK;
     const wasRedOn = this.rulesEngine.getBallOnCalculator().getBallOn(frame).includes(BallType.RED);
@@ -232,7 +247,9 @@ export class GameStateManager {
       const black = allBalls.find(b => b.type === BallType.BLACK)!;
       const spot = this.rulesEngine.getSpottingLogic().findRespotPosition(BallType.BLACK, allBalls.filter(b => b !== black));
       black.respawn(spot.x, spot.z);
-      frame.striker = Math.random() < 0.5 ? 0 : 1; // Automated draw for a re-spotted black.
+      const nextStriker = Math.random() < 0.5 ? 0 : 1;
+      this.frameRecord.switchTurn(frame.striker, nextStriker, '重置黑球，抽签开球');
+      frame.striker = nextStriker; frame.currentBreak = 0;
       frame.balls = allBalls.map(b => b.getState()); result.cueBallInHand = true;
       this.setState(GameState.PLACING); return;
     }
@@ -247,11 +264,23 @@ export class GameStateManager {
     else this.setState(GameState.AIMING);
   }
 
+  /** Section 3.10(h): retain the balls and penalty, ask the offender to play again. */
+  requireOffenderToPlay(): void {
+    if (!this.match || !this.lastShotResult?.foul || !this.preShotFrame) return;
+    const frame = this.match.frame;
+    this.frameRecord.switchTurn(frame.striker, this.preShotFrame.striker, '要求犯规方继续击球');
+    frame.striker = this.preShotFrame.striker;
+    frame.freeBallAvailable = false; frame.nominatedFreeBall = null; frame.nominatedColour = null;
+    this.setState(this.lastShotResult.cueBallInHand ? GameState.PLACING : GameState.AIMING);
+  }
+
   /** Keep awarded penalty points, restore ball-on and offender when replay is requested. */
   replayShot(allBalls: BallBody[]): void {
     if (!this.match || !this.preShotFrame?.preShotSnapshot) return;
     for (const state of this.preShotFrame.preShotSnapshot) allBalls.find(b => b.id === state.id)?.restoreState(state);
     const frame = this.match.frame;
+    this.frameRecord.switchTurn(frame.striker, this.preShotFrame.striker, '复位重打');
+    frame.currentBreak = 0;
     frame.phase = this.preShotFrame.phase; frame.striker = this.preShotFrame.striker;
     frame.lastPottedWasRed = this.preShotFrame.lastPottedWasRed;
     frame.redsRemaining = this.preShotFrame.redsRemaining;
@@ -328,6 +357,12 @@ export class GameStateManager {
     const winner = frame.scores[0] > frame.scores[1] ? 0 : 1;
 
     this.match.framesWon[winner]++;
+    const matchComplete = this.match.framesWon[winner] >= framesToWin(this.match.totalFrames);
+    this.frameSummary = {
+      frameNumber: this.match.currentFrame, winner, scores: [...frame.scores],
+      highestBreaks: [...this.frameRecord.highestBreaks], framesWon: [...this.match.framesWon],
+      playerNames: [...this.match.playerNames], visits: this.frameRecord.snapshot(), matchComplete,
+    };
     gameEvents.emit('frame-over', {
       winner,
       scores: frame.scores,
@@ -335,20 +370,26 @@ export class GameStateManager {
     });
 
     // 检查比赛是否结束 / Check if match is over
-    const framesToWin = Math.ceil(this.match.totalFrames / 2);
-    if (this.match.framesWon[winner] >= framesToWin) {
+    if (matchComplete) {
       this.setState(GameState.GAME_OVER);
       gameEvents.emit('match-over', {
         winner,
         framesWon: this.match.framesWon,
       });
     } else {
-      // 开始新的一局 / Start new frame
-      this.match.currentFrame++;
-      this.match.frame = this.createNewFrame();
-      this.setState(GameState.AIMING);
-      // 注意: 需要重新摆球 / Note: balls need to be re-racked
+      this.setState(GameState.FRAME_OVER);
     }
+  }
+
+  /** Advance only after the frame's result panel has been acknowledged. */
+  continueFrame(): boolean {
+    if (!this.match || this.state !== GameState.FRAME_OVER || !this.frameSummary) return false;
+    this.match.currentFrame++;
+    this.match.frame = this.createNewFrame();
+    this.frameRecord = new FrameRecord(); this.frameSummary = null;
+    this.lastShotResult = null; this.shotTracker = null; this.preShotFrame = null;
+    this.setState(GameState.AIMING);
+    return true;
   }
 
   /**

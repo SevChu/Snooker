@@ -5,7 +5,7 @@ import { BallOnCalculator } from './BallOnCalculator';
 import { FreeBallRule } from './FreeBallRule';
 import { MissRule } from './MissRule';
 import { SnookerDetector } from './SnookerDetector';
-import { TouchingBall } from './TouchingBall';
+import { TouchingBall, type TouchingShot } from './TouchingBall';
 import { SpottingLogic } from './SpottingLogic';
 
 export interface ShotTracker {
@@ -18,6 +18,7 @@ export interface ShotTracker {
   ballsOffTable: BallBody[];
   wasSnookered: boolean;
   jumpShot?: boolean;
+  touching?: TouchingShot;
 }
 
 export class RulesEngine {
@@ -42,17 +43,22 @@ export class RulesEngine {
     const effectiveValue = (b: BallBody) => b === nominated ? onValue : ballValue(b.type);
     const firstIds = tracker.firstContactIds ?? new Set(tracker.firstBallHit ? [tracker.firstBallHit.id] : []);
     const firsts = allBalls.filter(b => firstIds.has(b.id));
-    const firstCorrect = nominated ? firstIds.has(nominated.id)
-      : tracker.firstBallHit !== null && ballOn.includes(tracker.firstBallHit.type);
+    const touchingOn = tracker.touching?.deemedContact;
+    const firstCorrect = !!touchingOn || (nominated ? firstIds.has(nominated.id)
+      : tracker.firstBallHit !== null && ballOn.includes(tracker.firstBallHit.type));
+    if (touchingOn) result.firstBallHit = touchingOn.type;
     const foulValues: number[] = [];
     const foul = (type: FoulType, value: number) => {
       result.foul ??= type; foulValues.push(Math.max(4, onValue, value));
     };
+    for (const b of tracker.touching?.balls ?? []) {
+      if (tracker.touching!.pushedIds.has(b.id)) foul(FoulType.PUSH_STROKE, effectiveValue(b));
+    }
     if (tracker.jumpShot) foul(FoulType.JUMP_SHOT, onValue);
     if (tracker.cueBallPotted) foul(FoulType.CUE_POTTED, onValue);
-    if (!tracker.firstBallHit) foul(FoulType.NO_CONTACT, onValue);
-    else if (!firstCorrect) foul(FoulType.WRONG_BALL_FIRST, effectiveValue(tracker.firstBallHit));
-    if (firsts.length > 1 && !firsts.every(b => b === nominated || ballOn.includes(b.type)))
+    if (!tracker.firstBallHit && !touchingOn) foul(FoulType.NO_CONTACT, onValue);
+    else if (tracker.firstBallHit && !firstCorrect) foul(FoulType.WRONG_BALL_FIRST, effectiveValue(tracker.firstBallHit));
+    if (!touchingOn && firsts.length > 1 && !firsts.every(b => b === nominated || ballOn.includes(b.type)))
       foul(FoulType.SIMULTANEOUS, Math.max(...firsts.map(effectiveValue)));
     for (const b of tracker.ballsOffTable) foul(b.isCueBall ? FoulType.CUE_OFF_TABLE : FoulType.BALL_OFF_TABLE, effectiveValue(b));
     for (const b of tracker.pottedBalls) {
@@ -80,7 +86,7 @@ export class RulesEngine {
       result.penaltyPoints = Math.max(MIN_FOUL_PENALTY, ...foulValues);
       result.foulBallValue = result.penaltyPoints;
       // Preserve the demo's conservative Miss policy; full referee intent assessment is separate.
-      result.isMiss = !tracker.wasSnookered && !firstCorrect && !tracker.jumpShot;
+      result.isMiss = !tracker.wasSnookered && !firstCorrect && !tracker.jumpShot && !tracker.touching?.pushedIds.size;
     }
     // Award free ball only after GameState has re-spotted colours and computed the incoming ball-on.
     return result;

@@ -51,6 +51,9 @@ export const TABLE_TOTAL_HEIGHT = 0.85;
 /** 球的半径 (官方: 直径 52.5mm) / Ball radius (official: diameter 52.5mm) */
 export const BALL_RADIUS = 0.02625;
 
+/** Numerical contact tolerance: 0.01 mm, not a visible gap. */
+export const TOUCHING_BALL_TOLERANCE = 1e-5;
+
 /** 球的质量 / Ball mass (kg) */
 export const BALL_MASS = 0.142;
 

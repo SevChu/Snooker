@@ -107,6 +107,7 @@ class SnookerGame {
   // AI 计时 / AI timing
   private aiThinkTimer: number = 0;
   private aiIsThinking: boolean = false;
+  private paused = false;
 
   // 瞄准启动保护期 (秒) / Aiming startup guard (seconds)
   // 进入瞄准状态后短暂禁止击球，防止残留输入触发
@@ -254,11 +255,16 @@ class SnookerGame {
       onStartGame: (config) => this.startGame(config),
       onPlayAgain: () => this.playAgain(),
       onBackToMenu: () => this.backToMenu(),
+      onPause: () => this.pauseGame(),
+      onResume: () => this.resumeGame(),
+      onNextFrame: () => this.nextFrame(),
     });
   }
 
   /** 开始游戏 / Start game */
   private startGame(config: GameConfig): void {
+    this.paused = false; this.aiIsThinking = false; this.aiThinkTimer = 0;
+    this.inputManager.setSuspended(false); this.aimController.clearPendingInput();
     this.audioManager.init(); // 需要用户交互后初始化 / Init after user interaction
 
     this.gameState.startMatch(config);
@@ -310,9 +316,40 @@ class SnookerGame {
 
   /** 返回菜单 / Back to menu */
   private backToMenu(): void {
+    this.paused = false; this.aiIsThinking = false; this.aiThinkTimer = 0;
+    this.inputManager.setSuspended(false); this.aimController.disable();
+    this.aimController.clearPendingInput(); this.spinSelector.hide();
+    this.cueRenderer.hide(); this.guideLines.clear(); this.shotControls.setVisible(false);
+    if (this.ghostBall) this.ghostBall.visible = false;
+    if (this.dZoneHighlight) this.dZoneHighlight.visible = false;
     this.gameState.setState(GameState.MENU);
+    this.gameState.match = null;
     this.rerackBalls();
     this.uiManager.showMenu();
+  }
+
+  private pauseGame(): void {
+    if (this.paused || !this.gameState.match ||
+        [GameState.MENU, GameState.GAME_OVER, GameState.FRAME_OVER].includes(this.gameState.getState())) return;
+    this.paused = true;
+    this.inputManager.setSuspended(true); this.aimController.clearPendingInput();
+    this.uiManager.showPause();
+  }
+
+  private resumeGame(): void {
+    if (!this.paused) return;
+    this.uiManager.hidePause();
+    this.inputManager.setSuspended(false); this.aimController.clearPendingInput();
+    this.paused = false;
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  private nextFrame(): void {
+    if (!this.gameState.continueFrame()) return;
+    this.inputManager.setSuspended(false); this.aiIsThinking = false;
+    this.rerackBalls(); this.gameState.initBallStates(this.ballRenderer.balls);
+    this.uiManager.showGame(this.gameState.match!);
+    this.enterPlacingState();
   }
 
   // ============================================================================
@@ -322,6 +359,7 @@ class SnookerGame {
   /** 进入瞄准状态 / Enter aiming state */
   private enterAimingState(preserveSetup = false): void {
     const frame = this.gameState.match?.frame;
+    if (this.gameState.match) this.uiManager.updateScoreboard(this.gameState.match);
     if (frame?.freeBallAvailable) { this.enterBallChoice(true); return; }
     if (frame?.lastPottedWasRed && !frame.nominatedColour) { this.enterBallChoice(false); return; }
     const power = this.aimController.getPower();
@@ -337,6 +375,11 @@ class SnookerGame {
       document.getElementById('ball-on')!.textContent = nominated
         ? '自由球：' + names[nominated.type] + ' 代替 ' + on.map(b => names[b]).join(' / ')
         : '本杆目标：' + on.map(b => names[b]).join(' / ');
+      const cue = this.ballRenderer.getCueBall();
+      const touching = cue ? this.gameState.getRulesEngine().getTouchingBall()
+        .getTouchingBallMessage(cue, this.ballRenderer.balls, frame) : '';
+      document.getElementById('touching-info')!.textContent = touching;
+      document.getElementById('touching-info')!.hidden = !touching;
     }
 
     // 清除残留输入 (防止 UI 点击触发击球) / Clear stale input (prevent UI clicks from firing shots)
@@ -383,7 +426,9 @@ class SnookerGame {
     const names: Record<string, string> = { red: '红球', yellow: '黄球', green: '绿球',
       brown: '棕球', blue: '蓝球', pink: '粉球', black: '黑球' };
     this.uiManager.showMessage(free ? '自由球 · 指定代替球' : '请选择本杆彩球',
-      free ? '被指定的球按目标球计分，进袋后复位。也可以放弃自由球。' : '本杆必须首先碰到指定的彩球，出杆前可以更换。',
+      (free ? '被指定的球按目标球计分，进袋后复位。也可以放弃自由球。' : '本杆必须首先碰到指定的彩球，出杆前可以更换。') +
+        '\n' + this.gameState.getRulesEngine().getTouchingBall().getTouchingBallMessage(
+          this.ballRenderer.getCueBall()!, this.ballRenderer.balls, frame),
       [...candidates.map(b => ({ text: names[b.type], onClick: () => choose(b) })),
         ...(free ? [{ text: '放弃自由球', onClick: () => choose(null) }] : []),
         ...(reselect ? [{ text: '保留原选择', onClick: () => this.enterAimingState(true) }] : [])]);
@@ -417,6 +462,7 @@ class SnookerGame {
 
   /** 进入放置状态 (白球 in-hand) / Enter placing state */
   private enterPlacingState(): void {
+    if (this.gameState.match) this.uiManager.updateScoreboard(this.gameState.match);
     this.gameState.setState(GameState.PLACING);
     this.aimController.disable();
     this.cueRenderer.hide();
@@ -436,6 +482,10 @@ class SnookerGame {
 
   /** 主更新函数 (每帧调用) / Main update function (called each frame) */
   private update(dt: number): void {
+    if (this.paused || this.gameState.getState() === GameState.FRAME_OVER ||
+        this.gameState.getState() === GameState.GAME_OVER) {
+      this.inputManager.resetFrameDeltas(); return;
+    }
     const state = this.gameState.getState();
     this.shotControls.setVisible(state === GameState.AIMING && !this.isAITurn());
     switch (state) {
@@ -636,6 +686,7 @@ class SnookerGame {
     const cueBall = this.ballRenderer.getCueBall();
     // Consume chronological events even if the struck ball pots later in this frame.
     for (const event of this.physicsWorld.drainEvents()) {
+      this.gameState.recordTouchingPush(event.touchingPushIds ?? []);
       this.jumpRule?.record(event, cueBall);
       if (this.gameState.shotTracker) this.gameState.shotTracker.jumpShot = this.jumpRule?.foul ?? false;
       if (event.kind === 'off') this.gameState.shotTracker?.ballsOffTable.push(event.ball);
@@ -655,6 +706,8 @@ class SnookerGame {
   private updateEvaluating(): void {
     const cueBall = this.ballRenderer.getCueBall();
     if (!cueBall || !this.gameState.match) return;
+    const objectsBefore = this.gameState.match.frame.balls.filter(b => b.isOnTable && !b.isPotted && b.type !== BallType.CUE);
+    const finalBlack = objectsBefore.length === 1 && objectsBefore[0].type === BallType.BLACK;
 
     // Clear the next shot's tip offset only after the current shot has finished.
     this.spinSelector.reset();
@@ -666,6 +719,17 @@ class SnookerGame {
     );
 
     const nextState = this.gameState.getState();
+    if (this.gameState.frameSummary) {
+      if (result.foul) this.audioManager.playFoul();
+      this.inputManager.setSuspended(true); this.aimController.disable();
+      this.aiIsThinking = false; this.shotControls.setVisible(false);
+      this.spinSelector.hide(); this.cueRenderer.hide(); this.guideLines.clear();
+      if (this.ghostBall) this.ghostBall.visible = false;
+      if (this.dZoneHighlight) this.dZoneHighlight.visible = false;
+      this.uiManager.updateScoreboard(this.gameState.match);
+      this.uiManager.showFrameSummary(this.gameState.frameSummary);
+      return;
+    }
     if (result.foul) {
       this.audioManager.playFoul();
       this.gameState.setState(GameState.MISS_CHOICE); // Prevent controls running behind the decision.
@@ -674,10 +738,14 @@ class SnookerGame {
         [FoulType.NO_CONTACT]: '未碰到目标球', [FoulType.WRONG_BALL_FIRST]: '首先碰错球',
         [FoulType.BALL_OFF_TABLE]: '球离开台面', [FoulType.CUE_OFF_TABLE]: '白球离开台面',
         [FoulType.WRONG_POT]: '非目标球落袋', [FoulType.FREE_BALL_SNOOKER]: '以指定自由球造成斯诺克',
+        [FoulType.PUSH_STROKE]: '推杆犯规：出杆时推动贴球',
       };
       this.uiManager.showMessage(reasons[result.foul] ?? '犯规',
         '罚 ' + result.penaltyPoints + ' 分给对手' + (result.freeBallAvailable ? ' · 对手获得自由球' : ''),
         [{ text: '继续', onClick: () => { this.gameState.setState(nextState); this.afterEvaluation(result); } },
+          ...(!finalBlack ? [{ text: '让对方继续打（现有球位）', onClick: () => {
+            this.gameState.requireOffenderToPlay(); this.afterEvaluation(result);
+          } }] : []),
           ...(result.isMiss ? [{ text: '复位重打', onClick: () => {
             this.gameState.replayShot(this.ballRenderer.balls); this.enterAimingState();
           } }] : [])]);

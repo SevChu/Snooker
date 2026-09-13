@@ -8,6 +8,7 @@ import { SnookerDetector } from '../src/game/SnookerDetector';
 import { FreeBallRule } from '../src/game/FreeBallRule';
 import { RulesEngine, type ShotTracker } from '../src/game/RulesEngine';
 import { GameStateManager } from '../src/game/GameState';
+import { framesToWin } from '../src/game/MatchFormat';
 import { JumpRule } from '../src/game/JumpRule';
 import { BallOnCalculator } from '../src/game/BallOnCalculator';
 import { SpottingLogic } from '../src/game/SpottingLogic';
@@ -36,6 +37,47 @@ function setupGame() {
     totalFrames: 1, player1Name: '甲', player2Name: '乙' });
   return game;
 }
+
+test('match setup rejects invalid frame counts without replacing the current match', () => {
+  const game = setupGame(), original = game.match;
+  for (const totalFrames of [0, -1, 2, 8, 34, 9.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 2]) {
+    assert.throws(() => game.startMatch({ mode: GameMode.PASS_PLAY, difficulty: AIDifficulty.MEDIUM,
+      totalFrames, player1Name: '甲', player2Name: '乙' }), RangeError);
+    assert.equal(game.match, original);
+  }
+  assert.equal(framesToWin(9), 5); assert.equal(framesToWin(35), 18);
+});
+
+test('custom best-of matches end exactly at the required wins, including the deciding frame', () => {
+  for (const totalFrames of [1, 9, 35]) for (const decidingFrame of [false, true]) {
+    const game = new GameStateManager(), needed = (totalFrames + 1) / 2;
+    game.startMatch({ mode: GameMode.PASS_PLAY, difficulty: AIDifficulty.MEDIUM,
+      totalFrames, player1Name: '甲', player2Name: '乙' });
+    const winners = decidingFrame
+      ? [...Array(needed - 1).fill(0), ...Array(needed).fill(1)] : Array(needed).fill(0);
+    winners.forEach((winner, index) => {
+      const w = new PhysicsWorld(), cue = make(w, 'cue', B.CUE, 1), black = make(w, 'black', B.BLACK, 2.5);
+      game.initBallStates(w.getBalls());
+      game.match!.frame.phase = GamePhase.COLOURS; game.match!.frame.striker = winner;
+      game.startShot(cue, w.getBalls()); game.recordCollision(cue, black);
+      black.pot(); game.recordPot(black); game.evaluateShot(w.getBalls(), cue);
+      if (index === winners.length - 1) {
+        assert.equal(game.getState(), GameState.GAME_OVER);
+        assert.equal(game.match!.framesWon[winner], needed);
+        assert.equal(game.match!.currentFrame, winners.length);
+      } else {
+        assert.equal(game.getState(), GameState.FRAME_OVER);
+        assert.equal(game.match!.currentFrame, index + 1, 'wait for the result panel');
+        assert.equal(game.frameSummary!.scores[winner], 7);
+        assert.equal(game.frameSummary!.highestBreaks[winner], 7);
+        assert.equal(game.continueFrame(), true);
+        assert.equal(game.match!.currentFrame, index + 2);
+        assert.equal(game.frameSummary, null);
+        assert.equal(game.continueFrame(), false, 'double clicks cannot skip a frame');
+      }
+    });
+  }
+});
 
 test('a colour nomination can be replaced before the shot, including after the final red', () => {
   for (const redsRemaining of [1, 0]) {

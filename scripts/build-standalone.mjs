@@ -28,16 +28,17 @@ const notices = `Third-party notices for Snooker v${pkg.version}\n\n` +
   `Source project dependency only (not bundled): cannon-es (${cannonVersion}).\n\n${cannonLicense}\n`;
 await writeFile('THIRD_PARTY_NOTICES.txt', notices.trimEnd() + '\n');
 const escapeHtml = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-const about = `<details style="position:absolute;bottom:8px;left:8px;max-width:calc(100vw - 16px);z-index:120;font:11px sans-serif;color:#aaa">
-<summary style="cursor:pointer">Snooker v${pkg.version} · © 2026 SevChu · 版权</summary>
-<pre style="padding:16px;max-height:65vh;max-width:680px;overflow:auto;white-space:pre-wrap;background:#101813;color:#ddd">${escapeHtml(license + '\n\n' + notices)}</pre></details>`;
+const about = `<details class="club-notices">
+<summary>版权与许可</summary>
+<pre>${escapeHtml(license + '\n\n' + notices)}</pre></details>`;
 let html = await readFile('index.html', 'utf8');
 const entry = '<script type="module" src="/src/main.ts"></script>';
 assert.equal(html.split(entry).length, 2, 'Expected exactly one development entry');
 html = html.replace('<title>斯诺克 Snooker</title>', `<title>Snooker v${pkg.version} · 离线版</title>`)
   .replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">`)
-  .replace(entry, () => `${about}\n<script>${result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')}</script>`);
+  .replace('<div id="release-notices"></div>', () => `<div id="release-notices">${about}</div>`)
+  .replace(entry, () => `<script>${result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')}</script>`);
 assert.ok(!/<script\b[^>]*\bsrc\s*=|<link\b[^>]*\bhref\s*=|sourceMappingURL=/i.test(html), 'Release must not reference external scripts, styles, or source maps');
 const instructions = `Snooker v${pkg.version} — 离线分享版\n\n` +
   `解压后双击 ${name}.html，使用已安装的 Chrome / Edge 等支持 WebGL 2 的桌面浏览器打开。\n` +
@@ -47,6 +48,10 @@ const instructions = `Snooker v${pkg.version} — 离线分享版\n\n` +
   `F 切换精瞄，Shift 临时精瞄，左右键微调。左右竖条可直接拖动。\n` +
   `右下球面选择击球点，每杆结束自动回正。右侧倾角默认自动避让，手动调节后可恢复自动。\n` +
   `打入红球后选择彩球，出杆前可更换。支持同机双人轮流对战。\n\n` +
+  `暂停与结算：\n右上角暂停按钮或 Esc 暂停；可继续或退出返回首页。\n` +
+  `Points Remained 表示台面理论最高分，不预估未来犯规罚分。\n` +
+  `每局结束显示比分、双方单杆最高分和进球顺序；白球数字代表罚分，白球中的 ↻ 代表交换击球权。\n` +
+  `点击下一局后重新摆球；比赛结束后可再来一场。\n\n` +
   `关闭或刷新页面不保存进度。物理与部分规则仍是 demo 近似。\n\n` +
   `Copyright (c) 2026 SevChu. All rights reserved.\n详见 LICENSE 与 THIRD_PARTY_NOTICES.txt。\n`;
 const entries = [
