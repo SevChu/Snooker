@@ -217,17 +217,33 @@
     .dialog-actions button { border: 1px solid #67735d; border-radius: 6px; padding: 12px 23px;
       font: inherit; font-size: 14px; color: #e7e9dc; background: #1c3026; cursor: pointer; }
     .dialog-actions .primary { border-color: #d5b38e; background: #d5b38e; color: #18221c; }
+    #pause-dialog [hidden] { display: none; }
+    #btn-concede-frame { border-color: #ac795f; color: #efb89a; }
     .dialog-actions button:hover { filter: brightness(1.12); }
     .game-dialog :focus-visible, #btn-pause:focus-visible { outline: 2px solid #d5b38e; outline-offset: 4px; }
     #frame-dialog { width: min(820px, calc(100vw - 32px)); }
+    #frame-dialog [hidden] { display: none; }
+    .statistics-tabs { display: flex; gap: 6px; padding: 5px; background: #102018; border-radius: 9px; margin: 18px 0; }
+    .statistics-tabs button { flex: 1; padding: 12px; border: 1px solid transparent; border-radius: 6px;
+      background: transparent; color: #b9c6b3; font: inherit; cursor: pointer; }
+    .statistics-tabs button[aria-selected=true] { background: #2c4132; color: #e4c6a5; border-color: #67735d; }
+    .statistics-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-block: 12px; }
+    .statistics-table caption { text-align: left; font-size: 14px; color: #e4c6a5; padding-block: 12px; }
+    .statistics-table th, .statistics-table td { padding: 15px 10px; border-bottom: 1px solid #374e3e;
+      text-align: center; overflow-wrap: anywhere; font-weight: 400; font-size: 13px; }
+    .statistics-table th:first-child { text-align: left; width: 44%; }
+    .statistics-table thead { color: #b9c6b3; }
+    .statistics-table strong { color: #e4c6a5; font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .statistics-table small { display: block; color: #a7b7a2; font-size: 11px; margin-top: 5px; line-height: 1.5; }
+    .statistics-rules { margin-top: 18px; font-size: 12px; color: #b1bdac; line-height: 1.8; }
+    .statistics-rules summary { cursor: pointer; color: #d5b38e; }
+    .statistics-rules p { margin-top: 8px; }
     .frame-result-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
     .frame-result-card { padding: 18px 22px; background: #102018; border: 1px solid #374e3e;
       border-radius: 9px; min-width: 0; }
     .frame-result-card.winner { border-color: #d5b38e; }
     .result-player { font-size: 14px; overflow-wrap: anywhere; color: #b9c6b3; }
     .result-score { font-size: 44px; line-height: 1.4; font-variant-numeric: tabular-nums; }
-    .result-highest { font-size: 12px; color: #b9c6b3; }
-    .result-highest strong { color: #e4c6a5; font-weight: 500; margin-left: 10px; }
     .frame-record-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
       border-bottom: 1px solid #40523e; padding-bottom: 12px; }
     .frame-record-heading h3 { font-size: 15px; font-weight: 500; }
@@ -268,6 +284,8 @@
       .visit-row { grid-template-columns: minmax(0, 1fr) 52px; gap: 10px; }
       .visit-player { grid-column: 1 / -1; } .visit-sequence { gap: 6px; }
       #frame-dialog .dialog-actions { bottom: -22px; }
+      .statistics-table th, .statistics-table td { padding: 12px 5px; font-size: 12px; }
+      .statistics-table strong { font-size: 17px; }
     }
 
     /* 旋转选择器 / Spin Selector */
@@ -359,6 +377,11 @@
     .shot-footer { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
       width: max-content; max-width: calc(100vw - 300px); text-align: center; }
     .target-row, .shot-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; }
+    #attack-selection { margin: 7px auto 0; max-width: 480px; border-radius: 6px; pointer-events: auto;
+      background: #102018e8; padding: 6px 10px; font-size: 11px; color: #b9c6b3; }
+    #attack-selection summary { cursor: pointer; overflow-wrap: anywhere; }
+    #attack-selection select { max-width: 100%; margin-top: 8px; }
+    #attack-selection p { margin-top: 6px; line-height: 1.5; }
     .target-row { min-height: 25px; margin-bottom: 7px; font-size: 12px; color: #d5d0a9; text-shadow: 0 1px 5px #000; }
     #shot-controls #change-colour { padding: 3px 8px; font-size: 11px; }
     #shot-controls #shoot-button { padding-inline: 20px; border-color: #a89c68; color: #e5dba9; }
@@ -492,7 +515,9 @@
       <div class="dialog-eyebrow">TAKE A BREATHER</div>
       <h2 id="pause-title">比赛已暂停</h2>
       <p id="pause-description" class="dialog-description">球台会在这里等你。退出将返回首页，本场比赛进度不保留。</p>
+      <p id="concede-description" class="dialog-description" hidden></p>
       <div class="dialog-actions">
+        <button id="btn-concede-frame" hidden>认输本局</button>
         <button id="btn-pause-exit">退出比赛</button><button id="btn-resume" class="primary">继续比赛</button>
       </div>
     </dialog>
@@ -500,16 +525,15 @@
       <div class="dialog-eyebrow">THE FRAME · RESULTS</div>
       <h2 id="frame-result-title">本局结算</h2>
       <p id="frame-result-subtitle" class="dialog-description"></p>
+      <div id="frame-overview">
       <div class="frame-result-scores">
         <section class="frame-result-card" id="frame-card-0" aria-labelledby="frame-player-0">
           <h3 class="result-player" id="frame-player-0">Player 1</h3>
           <div class="result-score" id="frame-score-0">0</div>
-          <div class="result-highest">单杆最高分<strong id="frame-highest-0">0</strong></div>
         </section>
         <section class="frame-result-card" id="frame-card-1" aria-labelledby="frame-player-1">
           <h3 class="result-player" id="frame-player-1">Player 2</h3>
           <div class="result-score" id="frame-score-1">0</div>
-          <div class="result-highest">单杆最高分<strong id="frame-highest-1">0</strong></div>
         </section>
       </div>
       <div class="frame-record-heading"><h3>本局击球记录</h3><span>按上台顺序 · 右侧为该次单杆得分</span></div>
@@ -520,8 +544,28 @@
         <span><span class="result-ball cue turn-marker" aria-hidden="true">↻</span>交换击球权</span>
         <span><span class="result-ball blue free-ball" aria-hidden="true"></span>自由球</span>
       </div>
-      <div class="dialog-actions"><button id="btn-frame-exit">返回首页</button>
+      <div class="dialog-actions"><button id="btn-frame-statistics">高阶数据 ↗</button><button id="btn-frame-exit">返回首页</button>
         <button id="btn-frame-continue" class="primary">下一局</button></div>
+      </div>
+      <section id="frame-statistics" hidden aria-labelledby="statistics-title">
+        <h3 id="statistics-title">高阶数据</h3>
+        <p id="statistics-context" class="dialog-description"></p>
+        <div class="statistics-tabs" role="tablist" aria-label="统计范围">
+          <button id="stats-tab-frame" role="tab" aria-selected="true" aria-controls="stats-panel-frame">当前 Frame</button>
+          <button id="stats-tab-match" role="tab" aria-selected="false" aria-controls="stats-panel-match" tabindex="-1">整个 Match</button>
+        </div>
+        <div id="stats-panel-frame" role="tabpanel" aria-labelledby="stats-tab-frame" tabindex="0"></div>
+        <div id="stats-panel-match" role="tabpanel" aria-labelledby="stats-tab-match" tabindex="0" hidden></div>
+        <p class="dialog-description">成功率下方为成功次数 / 总次数；无样本显示 —。</p>
+        <details class="statistics-rules">
+          <summary>查看统计口径</summary>
+          <p>进球、长台、库边球和架杆成功率仅统计出杆前选择“进攻”的杆次；合法得分为成功，犯规进球为失败，一杆进多球仍只计一次。单杆最高分统计全部合法得分，不含罚分。</p>
+          <p>长台使用出杆前的母球球心到目标球球心、目标球球心到目标袋中心的两段直线距离之和，严格超过桌长 2/3。目标默认按瞄准方向推断，也可在出杆前手动指定；目标无法确定时不计入长台样本。</p>
+          <p>库边球使用出杆前母球或目标球表面到胶边的最短间隙，不超过 1/4 个球直径（约 13.1 mm）。十字架杆和高架杆均计入架杆样本。</p>
+          <p>防守仅统计选择“防守”的杆次：合法交出球权后，对方接手第一杆没有合法进球即成功；己方犯规计失败。没有交权或尚无对方回应的防守不计入分母，复位及指定开球不产生额外样本。Match 按各局原始次数累计，单杆最高分取最大值。</p>
+        </details>
+        <div class="dialog-actions"><button id="btn-statistics-back">← 返回本局结算</button></div>
+      </section>
     </dialog>
 
     <!-- 旋转选择器 / Spin Selector -->
@@ -557,8 +601,17 @@
           <select id="bridge-kind" aria-label="球杆支撑">
             <option value="hand">手架</option><option value="rest">十字架杆</option><option value="spider">高架杆</option>
           </select>
+          <select id="shot-intent" aria-label="本杆意图" title="只有进攻杆计入进球成功率；每杆默认进攻">
+            <option value="attack">进攻</option><option value="safety">防守</option>
+          </select>
           <button id="shoot-button">出杆 · 空格</button>
         </div>
+        <details id="attack-selection">
+          <summary id="attack-selection-label">进攻目标：自动识别</summary>
+          <select id="stats-target" aria-label="进攻目标球"><option value="">目标球：自动</option></select>
+          <select id="stats-pocket" aria-label="进攻目标袋"><option value="">目标袋：自动</option></select>
+          <p>默认按瞄准方向识别；可手动指定用于统计的球和袋，不改变瞄准方向。每杆重置为自动。</p>
+        </details>
         <div class="control-hint">拖动瞄准 · Shift 精瞄 · ← → 微调 · 右下角选择击球点</div>
       </div>
     </section>

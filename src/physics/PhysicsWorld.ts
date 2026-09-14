@@ -6,7 +6,7 @@ import {
 import type { BallBody } from './BallBody';
 import { applyCloth } from './SpinPhysics';
 import { collideBalls, collideCushion, collideSlate } from './Contacts';
-import { CUSHIONS, POCKETS, pocketAt, type CushionSegment } from './TableGeometry';
+import { CUSHIONS, POCKETS, pocketAt, pocketEntryTime, type CushionSegment } from './TableGeometry';
 
 export type PhysicsEvent = {
   kind: 'ball' | 'cushion' | 'pot' | 'slate' | 'fall' | 'off' | 'over';
@@ -238,9 +238,7 @@ export class PhysicsWorld {
         }
       }
       if (a.posY <= R + 1e-7 && a.pocketIndex === null) for (let p = 0; p < POCKETS.length; p++) {
-        const pocket = POCKETS[p], dx = a.posX - pocket.x, dz = a.posZ - pocket.z;
-        const time = dx * dx + dz * dz < pocket.captureRadius ** 2 ? 0
-          : sphereTime(dx, 0, dz, a.velX, 0, a.velZ, pocket.captureRadius, horizon);
+        const time = pocketEntryTime(POCKETS[p], a.posX, a.posZ, a.velX, a.velZ, horizon);
         accept(time, a, 'fall', 0, 0, 0, undefined, undefined, p);
       }
       if (a.posX < -FRAME_WIDTH || a.posX > L + FRAME_WIDTH || a.posZ < -FRAME_WIDTH || a.posZ > W + FRAME_WIDTH)

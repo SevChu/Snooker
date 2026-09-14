@@ -12,6 +12,8 @@
 <aside>六袋同打 · 使用游戏中的球台、碰撞和灯光<br>
   <label>力度 <select id="speed"><option>0.5</option><option selected>2</option><option>8</option><option>12</option></select> m/s</label>
   <label><input id="slow" type="checkbox" checked>慢放 ¼</label><br>
+  <label>位置 <select id="offset"><option value="0">正中</option><option value="-.9">入口左侧</option><option value=".9">入口右侧</option><option value="2">偏出袋口</option></select></label>
+  <label>近景 <select id="closeup"><option value="">整台</option><option value="0">角袋</option><option value="4">中袋</option></select></label><br>
   <button id="replay">重新试打</button><button id="view">低视角</button>
   <label><input id="orbit" type="checkbox">转动视角</label>
   <div id="result" role="status"></div>
@@ -39,10 +41,11 @@ for (let i = 0; i < 6; i++) {
 function replay() {
   world.resetShot(); pots = 0; falls = 0; age = 0;
   balls.forEach((b,i) => {
-    const p=POCKETS[i], dx=L/2-p.x, dz=W/2-p.z, len=Math.hypot(dx,dz);
-    b.respawn(p.x+dx/len*.18, p.z+dz/len*.18);
+    const p=POCKETS[i], across=Number(document.querySelector('#offset').value)*(p.radius-R);
+    b.respawn(p.mouth.x-p.outward.x*.18-p.outward.z*across,
+      p.mouth.z-p.outward.z*.18+p.outward.x*across);
     const speed=Number(document.querySelector('#speed').value);
-    b.setVelocity(-dx/len*speed,0,-dz/len*speed);
+    b.setVelocity(p.outward.x*speed,0,p.outward.z*speed);
     b.setAngularVelocity(b.velZ/R,0,-b.velX/R);
   });
 }
@@ -57,8 +60,15 @@ scene.onUpdate(dt => {
   }
   balls.forEach((b,i) => {meshes[i].visible=!b.isPotted; meshes[i].position.set(b.posX,b.posY,b.posZ);});
   if (document.querySelector('#orbit').checked) angle += dt*.35;
-  scene.camera.position.set(L/2+Math.sin(angle)*3.6,low ? .48 : 3.1,W/2+Math.cos(angle)*3.6);
-  scene.camera.lookAt(L/2,0,W/2);
+  const selected=document.querySelector('#closeup').value;
+  if(selected !== '') {
+    const p=POCKETS[Number(selected)];
+    scene.camera.position.set(p.x-p.outward.x*.12,low ? .10 : .48,p.z-p.outward.z*.12);
+    scene.camera.lookAt(p.x,0,p.z);
+  } else {
+    scene.camera.position.set(L/2+Math.sin(angle)*3.6,low ? .48 : 3.1,W/2+Math.cos(angle)*3.6);
+    scene.camera.lookAt(L/2,0,W/2);
+  }
   result.textContent=`模拟 ${age.toFixed(2)} s · 进入袋口 ${falls}/6 · 已进袋 ${pots}/6 · 迭代超限 ${world.collisionBudgetExceeded}`;
 });
 replay(); scene.start();

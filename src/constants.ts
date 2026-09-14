@@ -64,10 +64,10 @@ export const BALL_INERTIA = 0.4 * BALL_MASS * BALL_RADIUS * BALL_RADIUS;
 // 袋口参数 / Pocket Parameters
 // ============================================================================
 
-/** 角袋开口半径 / Corner pocket opening radius */
+/** 角袋半圆半径，入口及直线通道净宽均为直径 / Inner radius; mouth and throat width = 2r. */
 export const CORNER_POCKET_RADIUS = 0.043; // 86mm 开口 / 86mm opening
 
-/** 中袋开口半径 / Side (middle) pocket opening radius */
+/** 中袋半圆半径，入口及直线通道净宽均为直径 / Inner radius; mouth and throat width = 2r. */
 export const SIDE_POCKET_RADIUS = 0.045; // 90mm model opening; not a certified WPBSA template
 
 /** 袋口深度 / Pocket depth (for rendering) */

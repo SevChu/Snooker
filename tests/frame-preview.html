@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Frame statistics preview</title></head>
+<body>
+<script type="module">
+  // Reuse the real page markup/styles without booting the 3D game. Development only.
+  const response = await fetch('/index.html');
+  const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+  for (const style of page.head.querySelectorAll('style, link[rel="stylesheet"]')) document.head.append(style);
+  for (const script of page.body.querySelectorAll('script')) script.remove();
+  document.body.replaceChildren(...page.body.childNodes);
+  await import('./frame-preview.ts');
+</script>
+</body></html>

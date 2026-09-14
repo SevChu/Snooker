@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../src/physics/PhysicsWorld';
 import { BallBody } from '../src/physics/BallBody';
-import { POCKETS, CUSHION_PATHS } from '../src/physics/TableGeometry';
+import { POCKETS, CUSHION_PATHS, CUSHIONS, containsPocket, pocketOutline, pocketCoordinates,
+  pocketEntryTime, type Pocket } from '../src/physics/TableGeometry';
 import { TableRenderer } from '../src/render/TableRenderer';
 import { BallType, GameMode, AIDifficulty } from '../src/types';
 import { GameStateManager } from '../src/game/GameState';
-import { BALL_RADIUS as R, TABLE_LENGTH as L, TABLE_WIDTH as W, PHYSICS_TIMESTEP as DT } from '../src/constants';
+import { BALL_RADIUS as R, CUSHION_JAW_RADIUS as J, TABLE_LENGTH as L, TABLE_WIDTH as W, PHYSICS_TIMESTEP as DT } from '../src/constants';
 
 test('all six pockets commit one-way, sink visibly and emit exactly one pot at all speeds', () => {
   for (const speed of [.3, 1, 4, 8, 12]) for (const p of POCKETS) {
@@ -21,7 +22,7 @@ test('all six pockets commit one-way, sink visibly and emit exactly one pot at a
       w.step(DT); events.push(...w.drainEvents());
       if (b.pocketIndex !== null) {
         captured = true; assert.ok(b.posY <= previousY + 1e-9);
-        assert.ok(Math.hypot(b.posX - p.x, b.posZ - p.z) <= p.captureRadius + 1e-7);
+        assert.ok(containsPocket(p, b.posX, b.posZ));
         if (!b.isPotted && b.posY < R - .003) sawFalling = true;
       }
       if (captured) assert.notEqual(b.pocketIndex, null);
@@ -91,7 +92,7 @@ test('wood and rubber tops do not overlap on any of the six rails', () => {
   CUSHION_PATHS.forEach((points, index) => {
     const long = index < 4;
     const outside = (long ? points[0].z : points[0].x) < 0 ? -1 : 1;
-    const a = points[16], b = points[17];
+    const a = points[1], b = points[2];
     for (const t of [.15, .4, .65, .85]) for (const offset of [.008, .02, .04, .08]) {
       const x = a.x + (b.x - a.x) * t + (long ? 0 : outside * offset);
       const z = a.z + (b.z - a.z) * t + (long ? outside * offset : 0);
@@ -102,5 +103,88 @@ test('wood and rubber tops do not overlap on any of the six rails', () => {
       assert.ok(materials.has(offset < .027 ? 'RubberBacking' : 'WoodRail'));
     }
   });
+  table.group.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+});
+
+function position(p: Pocket, across: number, depth: number) {
+  return { x: p.mouth.x - p.outward.z * across + p.outward.x * depth,
+    z: p.mouth.z + p.outward.x * across + p.outward.z * depth };
+}
+
+test('six mouths and throats have the semicircle diameter, with straight tangent sides and no inward pinch', () => {
+  for (const p of POCKETS) {
+    const outline = pocketOutline(p), a = outline[0], b = outline.at(-1)!;
+    assert.ok(Math.abs(Math.hypot(a.x - b.x, a.z - b.z) - 2 * p.radius) < 1e-12);
+    for (const index of [0, 1, outline.length - 2, outline.length - 1]) {
+      const local = pocketCoordinates(p, outline[index].x, outline[index].z);
+      assert.ok(Math.abs(Math.abs(local.across) - p.radius) < 1e-12);
+    }
+    for (const point of outline.slice(1, -1)) {
+      assert.ok(Math.abs(Math.hypot(point.x - p.x, point.z - p.z) - p.radius) < 1e-12);
+    }
+    for (const fraction of [0, .25, .5, .75, 1]) for (const across of [-p.radius, 0, p.radius]) {
+      const point = position(p, across, p.throatLength * fraction);
+      assert.ok(containsPocket(p, point.x, point.z));
+      // All solid cushion tubes stay outside the advertised opening, even near the mouth.
+      for (const s of CUSHIONS.filter(s => !s.leather && !s.rim)) {
+        const dx = s.bx - s.ax, dz = s.bz - s.az;
+        const t = Math.max(0, Math.min(1, ((point.x - s.ax) * dx + (point.z - s.az) * dz) / (dx * dx + dz * dz)));
+        assert.ok(Math.hypot(point.x - s.ax - t * dx, point.z - s.az - t * dz) >= J - 1e-10);
+      }
+    }
+  }
+});
+
+test('swept U capture includes the full throat and cannot tunnel across a mouth at high speed', () => {
+  for (const p of POCKETS) {
+    for (const across of [-.95 * p.radius, 0, .95 * p.radius]) {
+      const start = position(p, across, -.1), inside = position(p, across, .001);
+      assert.ok(containsPocket(p, inside.x, inside.z), 'throat corners must not be narrowed by a circle');
+      const t = pocketEntryTime(p, start.x, start.z, p.outward.x * 12, p.outward.z * 12, .02);
+      assert.ok(t !== null && Math.abs(t - .1 / 12) < 1e-10);
+      assert.equal(pocketEntryTime(p, start.x, start.z, -p.outward.x, -p.outward.z, 1), null);
+    }
+    const outside = position(p, p.radius + .001, .01);
+    assert.equal(containsPocket(p, outside.x, outside.z), false);
+  }
+});
+
+test('all six pockets accept offset rolling balls that fit the diameter, at soft and hard speeds', () => {
+  for (const p of POCKETS) for (const fraction of [-.9, 0, .9]) for (const speed of [.3, 1, 4, 12]) {
+    const w = new PhysicsWorld(), start = position(p, fraction * (p.radius - R), -.08);
+    const ball = new BallBody('red', BallType.RED, start, w);
+    ball.setVelocity(p.outward.x * speed, 0, p.outward.z * speed);
+    ball.setAngularVelocity(ball.velZ / R, 0, -ball.velX / R);
+    for (let i = 0; i < 360; i++) w.step(DT);
+    const events = w.drainEvents();
+    assert.ok(ball.isPotted, `pocket ${POCKETS.indexOf(p)}, offset ${fraction}, speed ${speed}`);
+    assert.equal(events.filter(e => e.kind === 'fall').length, 1);
+    assert.equal(events.filter(e => e.kind === 'pot').length, 1);
+    assert.equal(w.collisionBudgetExceeded, 0);
+  }
+});
+
+test('oversized offsets still hit the jaws before any fall event', () => {
+  for (const p of POCKETS) for (const sign of [-1, 1]) {
+    const w = new PhysicsWorld(), start = position(p, sign * (p.radius + .01), -.1);
+    const ball = new BallBody('red', BallType.RED, start, w);
+    ball.setVelocity(p.outward.x, 0, p.outward.z);
+    for (let i = 0; i < 48; i++) w.step(DT);
+    const events = w.drainEvents();
+    assert.equal(events.find(e => e.kind === 'cushion' || e.kind === 'fall')?.kind, 'cushion');
+    assert.equal(ball.isPotted, false);
+  }
+});
+
+test('visible U-shaped holes are not covered by slate, rubber or wood', () => {
+  const table = new TableRenderer(); table.group.updateMatrixWorld(true);
+  const solids = table.group.children.filter(o => ['PlayingSurface', 'RubberBacking', 'WoodRail', 'CushionNose'].includes(o.name));
+  const ray = new THREE.Raycaster();
+  for (const p of POCKETS) for (const depth of [.1, .5, 1, 1.5]) for (const across of [-.5, 0, .5]) {
+    const point = position(p, across * p.radius, depth * p.radius);
+    ray.set(new THREE.Vector3(point.x, .2, point.z), new THREE.Vector3(0, -1, 0));
+    assert.equal(ray.intersectObjects(solids).length, 0, `pocket ${POCKETS.indexOf(p)}, depth ${depth}, offset ${across}`);
+    assert.ok(ray.intersectObjects(table.group.children.filter(o => o.name === 'PocketFloor')).length > 0);
+  }
   table.group.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
 });

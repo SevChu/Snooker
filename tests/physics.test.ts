@@ -3,6 +3,7 @@ import './advanced.test';
 import './pockets.test';
 import './touching.test';
 import './frame-results.test';
+import './statistics.test';
 import './endgame.test';
 import './spotting.test';
 import assert from 'node:assert/strict';

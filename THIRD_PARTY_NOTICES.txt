@@ -1,4 +1,4 @@
-Third-party notices for Snooker v1.2.0
+Third-party notices for Snooker v1.3.0
 
 Bundled in the standalone HTML: three.js (0.170.0), MIT License.
 

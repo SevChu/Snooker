@@ -38,6 +38,9 @@ import { gameEvents } from '../utils/EventEmitter';
 import { framesToWin } from './MatchFormat';
 import { FrameRecord, type FrameSummary } from './FrameRecord';
 import { replayBlockedByScore } from './ReplayRule';
+import { remainingPoints } from './RemainingPoints';
+import { classifyShot, emptyStatistics, mergeStatistics, type ShotSelection,
+  type ShotClassification } from './ShotStatistics';
 
 export class GameStateManager {
   /** 当前游戏状态 / Current game state */
@@ -58,6 +61,9 @@ export class GameStateManager {
   private foulChoicePending = false;
   public frameRecord = new FrameRecord();
   public frameSummary: FrameSummary | null = null;
+  private completedStatistics = emptyStatistics();
+  private shotClassification: ShotClassification = { intent: 'attack', long: false, cushion: false, rest: false };
+  private shotEvaluated = false;
 
   constructor() {
     this.rulesEngine = new RulesEngine();
@@ -88,6 +94,7 @@ export class GameStateManager {
     this.lastShotResult = null; this.shotTracker = null; this.preShotFrame = null;
     this.foulChoicePending = false;
     this.frameRecord = new FrameRecord(); this.frameSummary = null;
+    this.completedStatistics = emptyStatistics();
     this.match = {
       mode: config.mode,
       difficulty: config.difficulty,
@@ -131,9 +138,11 @@ export class GameStateManager {
   /**
    * 开始新一杆 / Start a new shot
    */
-  startShot(cueBall: BallBody, allBalls: BallBody[]): void {
+  startShot(cueBall: BallBody, allBalls: BallBody[], selection: ShotSelection = { intent: 'attack', bridge: 'hand' }): void {
     if (this.match?.frame.blackChoicePlayer != null || this.frameSummary) return;
     this.foulChoicePending = false;
+    this.shotEvaluated = false;
+    this.shotClassification = classifyShot(allBalls.map(b => b.getState()), selection);
     // 保存快照 (用于 Miss 规则) / Save snapshot (for Miss rule)
     if (this.match) {
       this.match.frame.preShotSnapshot = allBalls.map(b => b.getState());
@@ -206,6 +215,7 @@ export class GameStateManager {
    * Evaluate shot result (called when all balls stop)
    */
   evaluateShot(allBalls: BallBody[], cueBall: BallBody): ShotResult {
+    if (this.shotEvaluated) return this.lastShotResult ?? this.createEmptyResult();
     if (this.frameSummary) return this.lastShotResult ?? this.createEmptyResult();
     if (!this.match || !this.shotTracker) {
       return this.createEmptyResult();
@@ -219,6 +229,7 @@ export class GameStateManager {
     );
 
     this.lastShotResult = result;
+    this.shotEvaluated = true;
     this.applyShotResult(result, allBalls);
 
     return result;
@@ -230,7 +241,7 @@ export class GameStateManager {
   private applyShotResult(result: ShotResult, allBalls: BallBody[]): void {
     if (!this.match) return;
     const frame = this.match.frame;
-    this.frameRecord.recordShot(frame, result);
+    this.frameRecord.recordShot(frame, result, this.shotClassification);
     const beforeObjects = frame.balls.filter(b => b.type !== BallType.CUE && b.isOnTable && !b.isPotted);
     const decidingBlack = frame.phase === GamePhase.COLOURS &&
       beforeObjects.length === 1 && beforeObjects[0].type === BallType.BLACK;
@@ -390,18 +401,40 @@ export class GameStateManager {
   /**
    * 结束当前局 / End current frame
    */
-  private endFrame(): void {
+  /** Only the trailing human player may concede a settled, strictly overscored frame. */
+  getConcedingPlayer(): number | null {
+    if (!this.match || this.frameSummary || ![GameState.AIMING, GameState.PLACING,
+      GameState.MISS_CHOICE, GameState.FREE_BALL_SELECT].includes(this.state)) return null;
+    const frame = this.match.frame;
+    if (Math.abs(frame.scores[0] - frame.scores[1]) <= remainingPoints(frame)) return null;
+    const player = frame.scores[0] < frame.scores[1] ? 0 : 1;
+    return this.match.mode === GameMode.VS_AI && player !== 0 ? null : player;
+  }
+
+  concedeFrame(player: number): boolean {
+    if ((player !== 0 && player !== 1) || player !== this.getConcedingPlayer()) return false;
+    this.foulChoicePending = false;
+    this.frameRecord.statistics.cancelPendingSafety();
+    this.endFrame(player);
+    return true;
+  }
+
+  private endFrame(concededBy?: number): void {
     if (!this.match) return;
 
     const frame = this.match.frame;
-    const winner = frame.scores[0] > frame.scores[1] ? 0 : 1;
+    const winner = concededBy === undefined ? (frame.scores[0] > frame.scores[1] ? 0 : 1) : 1 - concededBy;
 
     this.match.framesWon[winner]++;
     const matchComplete = this.match.framesWon[winner] >= framesToWin(this.match.totalFrames);
+    this.completedStatistics = mergeStatistics(this.completedStatistics, this.frameRecord.statistics.players);
     this.frameSummary = {
       frameNumber: this.match.currentFrame, winner, scores: [...frame.scores],
       highestBreaks: [...this.frameRecord.highestBreaks], framesWon: [...this.match.framesWon],
       playerNames: [...this.match.playerNames], visits: this.frameRecord.snapshot(), matchComplete,
+      frameStatistics: mergeStatistics(this.frameRecord.statistics.players),
+      matchStatistics: mergeStatistics(this.completedStatistics),
+      concededBy,
     };
     gameEvents.emit('frame-over', {
       winner,

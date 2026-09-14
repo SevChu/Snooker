@@ -287,6 +287,9 @@ export interface DifficultyConfig {
 
 /** AI 击球方案 / AI shot plan */
 export interface AIShotPlan {
+  /** Intended pot retained before difficulty error is applied. */
+  targetBallId?: string;
+  targetPocket?: keyof typeof import('./constants').POCKET_POSITIONS;
   /** 目标球 / Target ball */
   targetBall: BallType;
   /** 瞄准方向 / Aim direction */

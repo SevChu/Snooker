@@ -24,11 +24,9 @@ import {
   D_CENTER,
   D_RADIUS,
   COLOUR_SPOTS,
-  CORNER_POCKET_RADIUS,
-  SIDE_POCKET_RADIUS,
   POCKET_DEPTH,
 } from '../constants';
-import { CUSHIONS, CUSHION_PATHS, POCKETS, type Point2 } from '../physics/TableGeometry';
+import { CUSHIONS, CUSHION_PATHS, POCKETS, pocketOutline, type Point2 } from '../physics/TableGeometry';
 
 /** Shared boundary: wood starts where the rubber backing ends, never underneath its top face. */
 function backingEdge(points: Point2[]): Point2[] {
@@ -61,19 +59,12 @@ export class TableRenderer {
    * Dark green surface simulating standard snooker cloth
    */
   private createPlayingSurface(): void {
-    // Cut the corner slate openings out of the bed itself. The same capture
-    // circles define the physical slate rims; falling balls remain visible below it.
-    const radius = POCKETS[0].captureRadius, offset = -POCKETS[0].x;
-    const start = Math.asin(offset / radius), end = Math.acos(offset / radius);
-    const arc = Array.from({ length: 25 }, (_, i) => {
-      const a = start + (end - start) * i / 24;
-      return { x: -offset + radius * Math.cos(a), z: -offset + radius * Math.sin(a) };
-    });
+    // Cut at the full-width mouths; the U-shaped wells continue beyond the bed edges.
+    const cut = Math.SQRT2 * POCKETS[0].radius;
     const outline = [
-      ...[...arc].reverse(),
-      ...arc.map(p => ({ x: TABLE_LENGTH - p.x, z: p.z })),
-      ...[...arc].reverse().map(p => ({ x: TABLE_LENGTH - p.x, z: TABLE_WIDTH - p.z })),
-      ...arc.map(p => ({ x: p.x, z: TABLE_WIDTH - p.z })),
+      { x: 0, z: cut }, { x: cut, z: 0 }, { x: TABLE_LENGTH - cut, z: 0 },
+      { x: TABLE_LENGTH, z: cut }, { x: TABLE_LENGTH, z: TABLE_WIDTH - cut },
+      { x: TABLE_LENGTH - cut, z: TABLE_WIDTH }, { x: cut, z: TABLE_WIDTH }, { x: 0, z: TABLE_WIDTH - cut },
     ];
     const shape = new THREE.Shape(outline.map(p => new THREE.Vector2(p.x, -p.z)));
     shape.closePath();
@@ -136,15 +127,23 @@ export class TableRenderer {
   private createCushions(): void {
     const material = new THREE.MeshStandardMaterial({ color: 0x0a5a2f, roughness: .8 });
     for (const points of CUSHION_PATHS) {
-      const curve = new THREE.CurvePath<THREE.Vector3>();
-      for (let i = 1; i < points.length; i++) curve.add(new THREE.LineCurve3(
-        new THREE.Vector3(points[i - 1].x, CUSHION_NOSE_HEIGHT, points[i - 1].z),
-        new THREE.Vector3(points[i].x, CUSHION_NOSE_HEIGHT, points[i].z)));
-      const nose = new THREE.Mesh(new THREE.TubeGeometry(curve, points.length * 3,
-        CUSHION_JAW_RADIUS, 12, false), material);
-      nose.name = 'CushionNose';
-      nose.castShadow = true; this.group.add(nose);
-      // Rubber backing: follows the same rounded mouth contour.
+      // Render each physical capsule explicitly. Uniform sampling of a long CurvePath
+      // skips the short jaw segments and visually rounds/narrows the mouth again.
+      for (let i = 1; i < points.length; i++) {
+        const a = new THREE.Vector3(points[i - 1].x, CUSHION_NOSE_HEIGHT, points[i - 1].z);
+        const b = new THREE.Vector3(points[i].x, CUSHION_NOSE_HEIGHT, points[i].z);
+        const nose = new THREE.Mesh(new THREE.CylinderGeometry(CUSHION_JAW_RADIUS,
+          CUSHION_JAW_RADIUS, a.distanceTo(b), 16), material);
+        nose.position.copy(a).add(b).multiplyScalar(.5);
+        nose.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.sub(a).normalize());
+        nose.name = 'CushionNose'; nose.castShadow = true; this.group.add(nose);
+      }
+      for (const point of points) {
+        const joint = new THREE.Mesh(new THREE.SphereGeometry(CUSHION_JAW_RADIUS, 16, 12), material);
+        joint.position.set(point.x, CUSHION_NOSE_HEIGHT, point.z);
+        joint.name = 'CushionNose'; joint.castShadow = true; this.group.add(joint);
+      }
+      // Rubber backing follows the same straight throat contour.
       const shape = new THREE.Shape(points.map(p => new THREE.Vector2(p.x, -p.z)));
       for (const p of backingEdge(points).reverse()) shape.lineTo(p.x, -p.z);
       shape.closePath();
@@ -185,20 +184,29 @@ export class TableRenderer {
       side: THREE.DoubleSide,
     });
 
-    const pockets = POCKETS.map(p => ({ pos: p, radius: p.radius }));
-
-    for (const pocket of pockets) {
-      // 袋口圆柱体 / Pocket cylinder
-      const geo = new THREE.CylinderGeometry(pocket.radius + .016, pocket.radius + .006, POCKET_DEPTH, 48, 1, true);
-      const mesh = new THREE.Mesh(geo, pocketMaterial);
-      mesh.position.set(pocket.pos.x, -POCKET_DEPTH / 2, pocket.pos.z);
-      mesh.name = `Pocket_${pocket.pos.x.toFixed(1)}_${pocket.pos.z.toFixed(1)}`;
+    for (const pocket of POCKETS) {
+      const outline = pocketOutline(pocket);
+      const vertices: number[] = [];
+      // Parallel walls and a semicircular back; no front wall across the mouth.
+      for (let i = 1; i < outline.length; i++) {
+        const a = outline[i - 1], b = outline[i];
+        vertices.push(a.x, 0, a.z, a.x, -POCKET_DEPTH, a.z, b.x, 0, b.z,
+          b.x, 0, b.z, a.x, -POCKET_DEPTH, a.z, b.x, -POCKET_DEPTH, b.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.computeVertexNormals();
+      const mesh = new THREE.Mesh(geometry, pocketMaterial);
+      mesh.name = `Pocket_${pocket.x.toFixed(1)}_${pocket.z.toFixed(1)}`;
       this.group.add(mesh);
 
-      const bottom = new THREE.Mesh(new THREE.CircleGeometry(pocket.radius + .016, 48),
+      const shape = new THREE.Shape(outline.map(p => new THREE.Vector2(p.x, -p.z)));
+      shape.closePath();
+      const bottom = new THREE.Mesh(new THREE.ShapeGeometry(shape),
         new THREE.MeshBasicMaterial({ color: 0x080b09, side: THREE.DoubleSide }));
       bottom.rotation.x = -Math.PI / 2;
-      bottom.position.set(pocket.pos.x, -POCKET_DEPTH, pocket.pos.z);
+      bottom.position.y = -POCKET_DEPTH;
+      bottom.name = 'PocketFloor';
       this.group.add(bottom);
 
     }

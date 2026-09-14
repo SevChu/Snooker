@@ -16,6 +16,7 @@ import { framesToWin, isValidFrameCount } from '../game/MatchFormat';
 import { version } from '../../package.json';
 import { remainingPoints } from '../game/RemainingPoints';
 import type { FrameSummary, VisitToken } from '../game/FrameRecord';
+import type { StatisticsPair, SuccessRate } from '../game/ShotStatistics';
 
 export class UIManager {
   // DOM 元素引用 / DOM element references
@@ -37,6 +38,8 @@ export class UIManager {
   private onPause: (() => void) | null = null;
   private onResume: (() => void) | null = null;
   private onNextFrame: (() => void) | null = null;
+  private onConcedeFrame: ((player: number) => void) | null = null;
+  private concedingPlayer: number | null = null;
   private pauseDialog = document.getElementById('pause-dialog') as HTMLDialogElement;
   private frameDialog = document.getElementById('frame-dialog') as HTMLDialogElement;
   private summaryComplete = false;
@@ -53,6 +56,9 @@ export class UIManager {
     document.getElementById('btn-pause')!.addEventListener('click', () => this.onPause?.());
     document.getElementById('btn-resume')!.addEventListener('click', () => this.onResume?.());
     document.getElementById('btn-pause-exit')!.addEventListener('click', () => this.onBackToMenu?.());
+    document.getElementById('btn-concede-frame')!.addEventListener('click', () => {
+      if (this.concedingPlayer !== null) this.onConcedeFrame?.(this.concedingPlayer);
+    });
     document.getElementById('btn-frame-exit')!.addEventListener('click', () => this.onBackToMenu?.());
     document.getElementById('btn-frame-continue')!.addEventListener('click', () => {
       this.frameDialog.close();
@@ -60,6 +66,18 @@ export class UIManager {
     });
     this.pauseDialog.addEventListener('cancel', event => { event.preventDefault(); this.onResume?.(); });
     this.frameDialog.addEventListener('cancel', event => event.preventDefault());
+    document.getElementById('btn-frame-statistics')!.addEventListener('click', () => this.showStatistics(true));
+    document.getElementById('btn-statistics-back')!.addEventListener('click', () => this.showStatistics(false));
+    for (const scope of ['frame', 'match'] as const) {
+      const tab = document.getElementById(`stats-tab-${scope}`)!;
+      tab.addEventListener('click', () => this.selectStatistics(scope));
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        this.selectStatistics(event.key === 'Home' ? 'frame' : event.key === 'End' ? 'match' :
+          scope === 'frame' ? 'match' : 'frame');
+      });
+    }
     window.addEventListener('keydown', event => {
       if (event.code === 'Escape' && !event.repeat && !this.pauseDialog.open && !this.frameDialog.open) {
         event.preventDefault(); this.onPause?.();
@@ -165,12 +183,14 @@ export class UIManager {
     onPause: () => void;
     onResume: () => void;
     onNextFrame: () => void;
+    onConcedeFrame?: (player: number) => void;
   }): void {
     this.onStartGame = callbacks.onStartGame;
     this.onPlayAgain = callbacks.onPlayAgain;
     this.onBackToMenu = callbacks.onBackToMenu;
     this.onPause = callbacks.onPause; this.onResume = callbacks.onResume;
     this.onNextFrame = callbacks.onNextFrame;
+    this.onConcedeFrame = callbacks.onConcedeFrame ?? null;
   }
 
   /** 显示主菜单 / Show main menu */
@@ -217,28 +237,46 @@ export class UIManager {
       `Frames: ${match.framesWon[0]}-${match.framesWon[1]} | ` +
       `Points Remained: ${remainingPoints(frame)} | Break: ${frame.currentBreak}` +
       (frame.respottedBlack ? ' | 平分争黑' :
-        Math.abs(frame.scores[0] - frame.scores[1]) > remainingPoints(frame) ? ' | 已超分' :
+        Math.abs(frame.scores[0] - frame.scores[1]) > remainingPoints(frame)
+          ? ' | 已超分' + (match.mode === GameMode.PASS_PLAY || frame.scores[0] < frame.scores[1]
+            ? ' · 暂停可认输本局' : '') :
         Math.abs(frame.scores[0] - frame.scores[1]) === remainingPoints(frame) ? ' | 延分 · 清台可追平' : '');
   }
 
-  showPause(): void {
+  showPause(concession?: { player: number; name: string; deficit: number; remaining: number }): void {
+    this.concedingPlayer = concession?.player ?? null;
+    const button = document.getElementById('btn-concede-frame')!;
+    const hint = document.getElementById('concede-description')!;
+    button.hidden = hint.hidden = !concession;
+    if (concession) {
+      button.textContent = `${concession.name} 认输本局`;
+      hint.textContent = `${concession.name} 落后 ${concession.deficit} 分，台面剩余最高 ${concession.remaining} 分。` +
+        '认输将保留当前比分与统计，判对方赢得本局，并进入结算。';
+    }
     if (!this.pauseDialog.open) this.pauseDialog.showModal();
     document.getElementById('btn-resume')!.focus();
   }
 
-  hidePause(): void { this.pauseDialog.close(); }
+  hidePause(): void { this.pauseDialog.close(); this.concedingPlayer = null; }
 
   showFrameSummary(summary: FrameSummary): void {
+    this.hidePause();
     this.hideMessage(); this.gameOver.style.display = 'none';
     document.getElementById('btn-pause')!.hidden = true;
     this.summaryComplete = summary.matchComplete;
+    document.getElementById('frame-overview')!.hidden = false;
+    document.getElementById('frame-statistics')!.hidden = true;
+    this.renderStatistics('frame', summary.frameStatistics, summary.playerNames);
+    this.renderStatistics('match', summary.matchStatistics, summary.playerNames);
+    document.getElementById('statistics-context')!.textContent =
+      `本局：第 ${summary.frameNumber} 局 · 整场：第 1–${summary.frameNumber} 局累计`;
     document.getElementById('frame-result-title')!.textContent = `第 ${summary.frameNumber} 局结算`;
     document.getElementById('frame-result-subtitle')!.textContent =
-      `${summary.playerNames[summary.winner]} ${summary.matchComplete ? '赢得比赛' : '赢得本局'} · 大比分 ${summary.framesWon[0]} : ${summary.framesWon[1]}`;
+      `${summary.playerNames[summary.winner]} ${summary.matchComplete ? '赢得比赛' : '赢得本局'} · 大比分 ${summary.framesWon[0]} : ${summary.framesWon[1]}` +
+      (summary.concededBy === undefined ? '' : ` · ${summary.playerNames[summary.concededBy]} 认输本局`);
     for (const player of [0, 1]) {
       document.getElementById(`frame-player-${player}`)!.textContent = summary.playerNames[player];
       document.getElementById(`frame-score-${player}`)!.textContent = String(summary.scores[player]);
-      document.getElementById(`frame-highest-${player}`)!.textContent = String(summary.highestBreaks[player]);
       document.getElementById(`frame-card-${player}`)!.classList.toggle('winner', player === summary.winner);
     }
     const history = document.getElementById('frame-history')!;
@@ -278,6 +316,61 @@ export class UIManager {
     if (!this.frameDialog.open) this.frameDialog.showModal();
     this.frameDialog.scrollTop = 0;
     document.getElementById('btn-frame-continue')!.focus({ preventScroll: true });
+  }
+
+  private showStatistics(visible: boolean): void {
+    document.getElementById('frame-overview')!.hidden = visible;
+    document.getElementById('frame-statistics')!.hidden = !visible;
+    this.frameDialog.scrollTop = 0;
+    if (visible) this.selectStatistics('frame');
+    else document.getElementById('btn-frame-statistics')!.focus({ preventScroll: true });
+  }
+
+  private selectStatistics(scope: 'frame' | 'match'): void {
+    for (const key of ['frame', 'match']) {
+      const tab = document.getElementById(`stats-tab-${key}`)!;
+      tab.setAttribute('aria-selected', String(key === scope));
+      tab.tabIndex = key === scope ? 0 : -1;
+      document.getElementById(`stats-panel-${key}`)!.hidden = key !== scope;
+    }
+    document.getElementById(`stats-tab-${scope}`)!.focus({ preventScroll: true });
+  }
+
+  private renderStatistics(scope: string, players: StatisticsPair, names: [string, string]): void {
+    const panel = document.getElementById(`stats-panel-${scope}`)!;
+    const table = document.createElement('table'); table.className = 'statistics-table';
+    const caption = table.createCaption();
+    caption.textContent = scope === 'frame' ? '当前 Frame · 本局数据' : '整个 Match · 累计数据';
+    const header = table.createTHead().insertRow();
+    for (const name of ['统计项目', ...names]) {
+      const th = document.createElement('th'); th.scope = 'col'; th.textContent = name; header.append(th);
+    }
+    const body = table.createTBody();
+    const metrics = [
+      ['pot', '进球成功率', '仅进攻杆'], ['long', '长台成功率', '总距离 > 桌长 2/3'],
+      ['safety', '防守／安全球成功率', '对方接手首杆未得分'],
+      ['highestBreak', '单杆最高分', '不含对方罚分'],
+      ['cushion', '库边球进球成功率', '球面距库边 ≤ 1/4 球径'],
+      ['rest', '架杆进球成功率', '十字架杆及高架杆'],
+    ] as const;
+    for (const [key, label, note] of metrics) {
+      const row = body.insertRow();
+      const heading = document.createElement('th'); heading.scope = 'row'; heading.textContent = label;
+      const hint = document.createElement('small'); hint.textContent = note; heading.append(hint); row.append(heading);
+      for (const player of players) {
+        const cell = row.insertCell(); const value = document.createElement('strong');
+        if (key === 'highestBreak') value.textContent = `${player[key]} 分`;
+        else {
+          const rate: SuccessRate = player[key];
+          value.textContent = rate.attempts ? `${(100 * rate.successes / rate.attempts).toFixed(1)}%` : '—';
+          const count = document.createElement('small');
+          count.textContent = rate.attempts ? `${rate.successes} / ${rate.attempts}` : '暂无样本';
+          cell.append(value, count);
+        }
+        if (key === 'highestBreak') cell.append(value);
+      }
+    }
+    panel.replaceChildren(table);
   }
 
   /** 显示信息消息 / Show info message */

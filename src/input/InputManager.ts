@@ -155,7 +155,7 @@ export class InputManager {
     on(window, 'keydown', ((e: KeyboardEvent) => {
       if (this.suspended) return;
       if (e.target instanceof HTMLElement && (e.target.closest('dialog') ||
-          (e.target.closest('button') && e.code === 'Space'))) return;
+          (e.target.closest('button, summary') && e.code === 'Space'))) return;
       if (e.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
       if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressedKeys.add(e.code);

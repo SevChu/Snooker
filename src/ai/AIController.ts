@@ -199,6 +199,9 @@ export class AIController {
 
     return {
       targetBall: targetBall.type,
+      targetBallId: targetBall.id,
+      targetPocket: (Object.keys(POCKET_POSITIONS) as Array<keyof typeof POCKET_POSITIONS>)
+        .find(key => POCKET_POSITIONS[key].x === pocketPos.x && POCKET_POSITIONS[key].z === pocketPos.z),
       direction: { x: aimDirX, y: 0, z: aimDirZ },
       power,
       spin: { side: 0, vertical: 0 },
@@ -284,7 +287,7 @@ export class AIController {
       power: Math.min(MAX_POWER * 0.6, MIN_POWER + dist * 1.5), // 适中力度 / Moderate power
       spin: { side: 0, vertical: 0 },
       score: 0.05,
-      isSafety: false,
+      isSafety: true,
     };
   }
 
@@ -319,7 +322,7 @@ export class AIController {
       power: MIN_POWER + (MAX_POWER - MIN_POWER) * 0.72, // 约 72% 力度 / ~72% power
       spin: { side: 0, vertical: -0.2 }, // 轻微低杆控制白球 / Slight backspin for control
       score: 0.5,
-      isSafety: false,
+      isSafety: true,
     };
   }
 

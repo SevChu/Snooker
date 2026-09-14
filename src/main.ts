@@ -62,6 +62,7 @@ import { JumpRule } from './game/JumpRule';
 
 // 游戏逻辑 / Game Logic
 import { GameStateManager } from './game/GameState';
+import { remainingPoints } from './game/RemainingPoints';
 
 // AI
 import { AIController } from './ai/AIController';
@@ -259,6 +260,7 @@ class SnookerGame {
       onPause: () => this.pauseGame(),
       onResume: () => this.resumeGame(),
       onNextFrame: () => this.nextFrame(),
+      onConcedeFrame: player => this.concedeFrame(player),
     });
   }
 
@@ -334,7 +336,28 @@ class SnookerGame {
         [GameState.MENU, GameState.GAME_OVER, GameState.FRAME_OVER].includes(this.gameState.getState())) return;
     this.paused = true;
     this.inputManager.setSuspended(true); this.aimController.clearPendingInput();
-    this.uiManager.showPause();
+    const player = this.gameState.getConcedingPlayer(), match = this.gameState.match;
+    this.uiManager.showPause(player === null ? undefined : {
+      player, name: match.playerNames[player],
+      deficit: Math.abs(match.frame.scores[0] - match.frame.scores[1]), remaining: remainingPoints(match.frame),
+    });
+  }
+
+  private concedeFrame(player: number): void {
+    if (!this.paused || !this.gameState.concedeFrame(player)) return;
+    this.showFrameResult();
+  }
+
+  /** Shared cleanup for a completed shot or a conceded frame. */
+  private showFrameResult(): void {
+    if (!this.gameState.match || !this.gameState.frameSummary) return;
+    this.paused = false; this.aiIsThinking = false; this.aiThinkTimer = 0;
+    this.inputManager.setSuspended(true); this.aimController.disable(); this.aimController.clearPendingInput();
+    this.shotControls.setVisible(false); this.spinSelector.hide(); this.cueRenderer.hide(); this.guideLines.clear();
+    if (this.ghostBall) this.ghostBall.visible = false;
+    if (this.dZoneHighlight) this.dZoneHighlight.visible = false;
+    this.uiManager.updateScoreboard(this.gameState.match);
+    this.uiManager.showFrameSummary(this.gameState.frameSummary);
   }
 
   private resumeGame(): void {
@@ -373,6 +396,8 @@ class SnookerGame {
         brown: '棕球', blue: '蓝球', pink: '粉球', black: '黑球' };
       const on = this.gameState.getRulesEngine().getBallOnCalculator().getBallOn(frame);
       const nominated = this.ballRenderer.balls.find(b => b.id === frame.nominatedFreeBall);
+      this.shotControls.setTargets(this.ballRenderer.balls.filter(b => b.isOnTable && !b.isPotted &&
+        b.type !== BallType.CUE && (on.includes(b.type) || b.id === nominated?.id)).map(b => b.getState()));
       document.getElementById('ball-on')!.textContent = nominated
         ? '自由球：' + names[nominated.type] + ' 代替 ' + on.map(b => names[b]).join(' / ')
         : '本杆目标：' + on.map(b => names[b]).join(' / ');
@@ -566,6 +591,7 @@ class SnookerGame {
         this.accessKey = makeAccessKey();
       }
       this.shotControls.update(this.cueAccess!);
+      this.shotControls.getSelection(cueBall.getState(), aimDir);
       if (this.cueAccess!.allowed) this.guideLines.update(cueBall, aimDir, ballsOnTable, spin, actualPower);
       else this.guideLines.clear();
 
@@ -601,7 +627,8 @@ class SnookerGame {
 
     this.physicsWorld.resetShot();
     this.jumpRule = new JumpRule(cueBall, this.ballRenderer.balls);
-    this.gameState.startShot(cueBall, this.ballRenderer.balls);
+    this.gameState.startShot(cueBall, this.ballRenderer.balls,
+      this.shotControls.getSelection(cueBall.getState(), aimDir));
 
     // 施加力和旋转 / Apply force and spin
     const vx = aimDir.x * power;
@@ -643,7 +670,10 @@ class SnookerGame {
 
     this.physicsWorld.resetShot();
     this.jumpRule = new JumpRule(cueBall, this.ballRenderer.balls);
-    this.gameState.startShot(cueBall, this.ballRenderer.balls);
+    this.gameState.startShot(cueBall, this.ballRenderer.balls, {
+      intent: plan.isSafety ? 'safety' : 'attack', bridge: 'hand',
+      targetBallId: plan.targetBallId, pocket: plan.targetPocket,
+    });
 
     // 施加力和旋转 / Apply force and spin
     const vx = plan.direction.x * plan.power;
@@ -726,13 +756,7 @@ class SnookerGame {
     const nextState = this.gameState.getState();
     if (this.gameState.frameSummary) {
       if (result.foul) this.audioManager.playFoul();
-      this.inputManager.setSuspended(true); this.aimController.disable();
-      this.aiIsThinking = false; this.shotControls.setVisible(false);
-      this.spinSelector.hide(); this.cueRenderer.hide(); this.guideLines.clear();
-      if (this.ghostBall) this.ghostBall.visible = false;
-      if (this.dZoneHighlight) this.dZoneHighlight.visible = false;
-      this.uiManager.updateScoreboard(this.gameState.match);
-      this.uiManager.showFrameSummary(this.gameState.frameSummary);
+      this.showFrameResult();
       return;
     }
     if (result.foul) {
