@@ -1,15 +1,14 @@
-# Snooker v1.1.0
+# Snooker
 
 默认双人轮流（Pass & Play），保留本地 AI。v1.1.0 新增英伦俱乐部首页、暂停菜单、台面剩余最高分和每局结算明细，并包含贴球判定修复与自定义奇数局赛制。完整变更见 [发布说明](RELEASE_NOTES.md)。
 
 ## 下载即玩（无需安装依赖）
 
-运行 `npm run build:standalone`，生成 `release/Snooker-v1.1.0.html` 和 `release/Snooker-v1.1.0.zip`。v1.1.0 的发布附件已可在本地构建，GitHub Release 尚待发布。
+前往 [v1.1.0 发布页](https://github.com/SevChu/Snooker/releases/tag/v1.1.0) 或 [最新发布](https://github.com/SevChu/Snooker/releases/latest) 下载：
 
-已发布的旧版仍可前往 [v1.0.0 发布页](https://github.com/SevChu/Snooker/releases/tag/v1.0.0) 下载：
-
-- **Snooker-v1.0.0.html**：保存后直接用桌面浏览器打开，单个文件即可分享。
-- **Snooker-v1.0.0.zip**：解压后打开其中的 HTML，附带游玩说明和完整版权文件。
+- [Snooker-v1.1.0.html](https://github.com/SevChu/Snooker/releases/download/v1.1.0/Snooker-v1.1.0.html)：保存后直接用桌面浏览器打开，单个文件即可分享。
+- [Snooker-v1.1.0.zip](https://github.com/SevChu/Snooker/releases/download/v1.1.0/Snooker-v1.1.0.zip)：解压后打开其中的 HTML，附带游玩说明、发布说明和完整版权文件。
+- [SHA256SUMS.txt](https://github.com/SevChu/Snooker/releases/download/v1.1.0/SHA256SUMS.txt)：用于校验 HTML 与 ZIP 文件。
 
 所有游戏代码与渲染依赖均已内嵌，不用安装 Node.js/npm/Python，不用启动服务器，
 不依赖 CDN 或联网请求。使用支持 WebGL 2 的桌面浏览器（例如已安装的 Chrome / Edge）。
