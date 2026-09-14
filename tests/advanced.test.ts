@@ -361,7 +361,7 @@ test('a foul on the final black ends the frame unless the scores become tied', (
     game.startShot(cue, w.getBalls()); const result = game.evaluateShot(w.getBalls(), cue);
     assert.equal(result.penaltyPoints, 7);
     if (scores[0] === 7) {
-      assert.equal(game.getState(), GameState.PLACING); assert.equal(result.cueBallInHand, true);
+      assert.equal(game.getState(), GameState.BLACK_CHOICE); assert.equal(result.cueBallInHand, true);
       assert.ok(black.isOnTable); assert.deepEqual(game.match!.frame.scores, [7, 7]);
     } else assert.equal(game.getState(), GameState.GAME_OVER);
   }

@@ -215,7 +215,10 @@ export class UIManager {
     document.getElementById('frame-info')!.textContent =
       `第 ${match.currentFrame} 局 · ${match.totalFrames} 局 ${framesToWin(match.totalFrames)} 胜 | ` +
       `Frames: ${match.framesWon[0]}-${match.framesWon[1]} | ` +
-      `Points Remained: ${remainingPoints(frame)} | Break: ${frame.currentBreak}`;
+      `Points Remained: ${remainingPoints(frame)} | Break: ${frame.currentBreak}` +
+      (frame.respottedBlack ? ' | 平分争黑' :
+        Math.abs(frame.scores[0] - frame.scores[1]) > remainingPoints(frame) ? ' | 已超分' :
+        Math.abs(frame.scores[0] - frame.scores[1]) === remainingPoints(frame) ? ' | 延分 · 清台可追平' : '');
   }
 
   showPause(): void {

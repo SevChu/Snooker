@@ -37,6 +37,7 @@ import { BallBody } from '../physics/BallBody';
 import { gameEvents } from '../utils/EventEmitter';
 import { framesToWin } from './MatchFormat';
 import { FrameRecord, type FrameSummary } from './FrameRecord';
+import { replayBlockedByScore } from './ReplayRule';
 
 export class GameStateManager {
   /** 当前游戏状态 / Current game state */
@@ -54,6 +55,7 @@ export class GameStateManager {
   /** 上一次击球结果 / Last shot result */
   public lastShotResult: ShotResult | null = null;
   private preShotFrame: FrameState | null = null;
+  private foulChoicePending = false;
   public frameRecord = new FrameRecord();
   public frameSummary: FrameSummary | null = null;
 
@@ -84,6 +86,7 @@ export class GameStateManager {
   startMatch(config: GameConfig): void {
     framesToWin(config.totalFrames); // Validate before replacing an existing match.
     this.lastShotResult = null; this.shotTracker = null; this.preShotFrame = null;
+    this.foulChoicePending = false;
     this.frameRecord = new FrameRecord(); this.frameSummary = null;
     this.match = {
       mode: config.mode,
@@ -129,10 +132,13 @@ export class GameStateManager {
    * 开始新一杆 / Start a new shot
    */
   startShot(cueBall: BallBody, allBalls: BallBody[]): void {
+    if (this.match?.frame.blackChoicePlayer != null || this.frameSummary) return;
+    this.foulChoicePending = false;
     // 保存快照 (用于 Miss 规则) / Save snapshot (for Miss rule)
     if (this.match) {
       this.match.frame.preShotSnapshot = allBalls.map(b => b.getState());
-      this.preShotFrame = { ...this.match.frame, scores: [...this.match.frame.scores] };
+      this.preShotFrame = { ...this.match.frame, scores: [...this.match.frame.scores],
+        balls: cloneBalls(this.match.frame.preShotSnapshot) };
     }
 
     // 创建击球追踪器 / Create shot tracker
@@ -226,7 +232,8 @@ export class GameStateManager {
     const frame = this.match.frame;
     this.frameRecord.recordShot(frame, result);
     const beforeObjects = frame.balls.filter(b => b.type !== BallType.CUE && b.isOnTable && !b.isPotted);
-    const decidingBlack = beforeObjects.length === 1 && beforeObjects[0].type === BallType.BLACK;
+    const decidingBlack = frame.phase === GamePhase.COLOURS &&
+      beforeObjects.length === 1 && beforeObjects[0].type === BallType.BLACK;
     const wasRedOn = this.rulesEngine.getBallOnCalculator().getBallOn(frame).includes(BallType.RED);
     if (result.scorePoints > 0) {
       frame.scores[frame.striker] += result.scorePoints; frame.currentBreak += result.scorePoints;
@@ -238,20 +245,24 @@ export class GameStateManager {
     frame.redsRemaining = allBalls.filter(b => b.type === BallType.RED && b.isOnTable && !b.isPotted).length;
     frame.lastPottedWasRed = !result.foul && result.scorePoints > 0 && wasRedOn;
     if (frame.redsRemaining === 0 && !frame.lastPottedWasRed) frame.phase = GamePhase.COLOURS;
-    frame.consecutiveMisses = result.isMiss ? frame.consecutiveMisses + 1 : 0;
     if (result.switchTurn) { frame.striker = 1 - frame.striker; frame.currentBreak = 0; }
     frame.nominatedFreeBall = null; frame.nominatedColour = null; frame.freeBallAvailable = false;
     frame.balls = allBalls.map(b => b.getState());
+    result.replayBlockedByScore = !!result.foul && !!this.preShotFrame &&
+      replayBlockedByScore(this.preShotFrame, frame);
+    if (result.replayBlockedByScore || decidingBlack) result.isMiss = false;
+    frame.consecutiveMisses = result.isMiss ? frame.consecutiveMisses + 1 : 0;
+    this.foulChoicePending = !!result.foul && !decidingBlack;
     if (decidingBlack && (result.foul || result.scorePoints > 0)) {
       if (frame.scores[0] !== frame.scores[1]) { this.endFrame(); return; }
       const black = allBalls.find(b => b.type === BallType.BLACK)!;
       const spot = this.rulesEngine.getSpottingLogic().findRespotPosition(BallType.BLACK, allBalls.filter(b => b !== black));
       black.respawn(spot.x, spot.z);
-      const nextStriker = Math.random() < 0.5 ? 0 : 1;
-      this.frameRecord.switchTurn(frame.striker, nextStriker, '重置黑球，抽签开球');
-      frame.striker = nextStriker; frame.currentBreak = 0;
+      frame.respottedBlack = true;
+      frame.blackChoicePlayer = Math.random() < 0.5 ? 0 : 1;
+      frame.currentBreak = 0; frame.consecutiveMisses = 0;
       frame.balls = allBalls.map(b => b.getState()); result.cueBallInHand = true;
-      this.setState(GameState.PLACING); return;
+      this.setState(GameState.BLACK_CHOICE); return;
     }
     if (result.foul) {
       const cue = allBalls.find(b => b.isCueBall)!;
@@ -266,17 +277,20 @@ export class GameStateManager {
 
   /** Section 3.10(h): retain the balls and penalty, ask the offender to play again. */
   requireOffenderToPlay(): void {
-    if (!this.match || !this.lastShotResult?.foul || !this.preShotFrame) return;
+    if (!this.match || !this.foulChoicePending || !this.lastShotResult?.foul || !this.preShotFrame || this.frameSummary) return;
+    this.foulChoicePending = false;
     const frame = this.match.frame;
     this.frameRecord.switchTurn(frame.striker, this.preShotFrame.striker, '要求犯规方继续击球');
     frame.striker = this.preShotFrame.striker;
     frame.freeBallAvailable = false; frame.nominatedFreeBall = null; frame.nominatedColour = null;
+    frame.consecutiveMisses = 0;
     this.setState(this.lastShotResult.cueBallInHand ? GameState.PLACING : GameState.AIMING);
   }
 
   /** Keep awarded penalty points, restore ball-on and offender when replay is requested. */
-  replayShot(allBalls: BallBody[]): void {
-    if (!this.match || !this.preShotFrame?.preShotSnapshot) return;
+  replayShot(allBalls: BallBody[]): boolean {
+    if (!this.canReplayShot() || !this.match || !this.preShotFrame?.preShotSnapshot) return false;
+    this.foulChoicePending = false;
     for (const state of this.preShotFrame.preShotSnapshot) allBalls.find(b => b.id === state.id)?.restoreState(state);
     const frame = this.match.frame;
     this.frameRecord.switchTurn(frame.striker, this.preShotFrame.striker, '复位重打');
@@ -287,6 +301,39 @@ export class GameStateManager {
     frame.nominatedColour = null; frame.nominatedFreeBall = null; frame.freeBallAvailable = false;
     frame.balls = allBalls.map(b => b.getState());
     this.setState(GameState.AIMING);
+    return true;
+  }
+
+  canReplayShot(): boolean {
+    return this.foulChoicePending && !this.frameSummary && !!this.lastShotResult?.foul &&
+      !!this.lastShotResult.isMiss && !this.lastShotResult.replayBlockedByScore &&
+      !!this.preShotFrame?.preShotSnapshot;
+  }
+
+  acceptFoul(): void {
+    this.foulChoicePending = false;
+    if (this.match) this.match.frame.consecutiveMisses = 0;
+  }
+
+  /** The draw winner chooses the next striker; that striker starts in-hand. */
+  chooseBlackStarter(player: number): boolean {
+    if (!this.match || this.state !== GameState.BLACK_CHOICE ||
+        this.match.frame.blackChoicePlayer == null || (player !== 0 && player !== 1)) return false;
+    const frame = this.match.frame;
+    this.frameRecord.switchTurn(frame.striker, player, '争黑：抽签胜者选择开球方');
+    frame.striker = player; frame.blackChoicePlayer = null; frame.currentBreak = 0;
+    this.setState(GameState.PLACING);
+    return true;
+  }
+
+  nominateFreeBall(id: string | null, allBalls: BallBody[]): boolean {
+    const frame = this.match?.frame;
+    if (!frame?.freeBallAvailable || this.state !== GameState.FREE_BALL_SELECT) return false;
+    const on = this.rulesEngine.getBallOnCalculator().getBallOn(frame);
+    const candidates = this.rulesEngine.getFreeBallRule().getNominatableBalls(allBalls, on);
+    if (id !== null && !candidates.some(ball => ball.id === id)) return false;
+    frame.nominatedFreeBall = id; frame.freeBallAvailable = false;
+    return true;
   }
 
   /**
@@ -295,15 +342,8 @@ export class GameStateManager {
   private respotColours(colours: BallType[], allBalls: BallBody[]): void {
     const spottingLogic = this.rulesEngine.getSpottingLogic();
 
-    for (const colour of colours) {
-      const balls = allBalls.filter(b => b.type === colour);
-      for (const ball of balls) {
-        if (ball.isPotted || !ball.isOnTable) {
-          const spot = spottingLogic.findRespotPosition(colour, allBalls);
-          ball.respawn(spot.x, spot.z);
-          gameEvents.emit('ball-respotted', { type: colour, position: spot });
-        }
-      }
+    for (const ball of spottingLogic.respotColours(colours, allBalls)) {
+      gameEvents.emit('ball-respotted', { type: ball.type, position: { x: ball.posX, z: ball.posZ } });
     }
   }
 
@@ -401,6 +441,7 @@ export class GameStateManager {
    * @returns 是否放置成功 / Whether placement succeeded
    */
   placeCueBall(x: number, z: number, allBalls: BallBody[]): boolean {
+    if (this.match?.frame.blackChoicePlayer != null) return false;
     // 验证位置在D区内 / Validate position is in D-zone
     if (x > BAULK_LINE_X + 0.001) return false;
 

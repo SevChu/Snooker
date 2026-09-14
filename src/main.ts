@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import {
   GameState,
+  GamePhase,
   FoulType,
   GameMode,
   BallType,
@@ -418,7 +419,9 @@ class SnookerGame {
     this.gameState.setState(GameState.FREE_BALL_SELECT);
     this.aimController.disable(); this.cueRenderer.hide(); this.guideLines.clear();
     const choose = (ball: BallBody | null) => {
-      if (free) { frame.nominatedFreeBall = ball?.id ?? null; frame.freeBallAvailable = false; }
+      if (free) {
+        if (!this.gameState.nominateFreeBall(ball?.id ?? null, this.ballRenderer.balls)) return;
+      }
       else frame.nominatedColour = ball!.type;
       this.enterAimingState(reselect);
     };
@@ -426,7 +429,7 @@ class SnookerGame {
     const names: Record<string, string> = { red: '红球', yellow: '黄球', green: '绿球',
       brown: '棕球', blue: '蓝球', pink: '粉球', black: '黑球' };
     this.uiManager.showMessage(free ? '自由球 · 指定代替球' : '请选择本杆彩球',
-      (free ? '被指定的球按目标球计分，进袋后复位。也可以放弃自由球。' : '本杆必须首先碰到指定的彩球，出杆前可以更换。') +
+      (free ? '被指定的球按目标球计分，进袋后复位。须先碰指定球（可同时碰目标球）。无得分时不得用它造成斯诺克，仅剩黑球与另一颗彩球时例外。也可以放弃自由球。' : '本杆必须首先碰到指定的彩球，出杆前可以更换。') +
         '\n' + this.gameState.getRulesEngine().getTouchingBall().getTouchingBallMessage(
           this.ballRenderer.getCueBall()!, this.ballRenderer.balls, frame),
       [...candidates.map(b => ({ text: names[b.type], onClick: () => choose(b) })),
@@ -505,6 +508,7 @@ class SnookerGame {
         this.updatePlacing(dt);
         break;
       case GameState.MISS_CHOICE:
+      case GameState.BLACK_CHOICE:
         // 等待 UI 选择 / Wait for UI choice
         break;
       case GameState.GAME_OVER:
@@ -707,7 +711,8 @@ class SnookerGame {
     const cueBall = this.ballRenderer.getCueBall();
     if (!cueBall || !this.gameState.match) return;
     const objectsBefore = this.gameState.match.frame.balls.filter(b => b.isOnTable && !b.isPotted && b.type !== BallType.CUE);
-    const finalBlack = objectsBefore.length === 1 && objectsBefore[0].type === BallType.BLACK;
+    const finalBlack = this.gameState.match.frame.phase === GamePhase.COLOURS &&
+      objectsBefore.length === 1 && objectsBefore[0].type === BallType.BLACK;
 
     // Clear the next shot's tip offset only after the current shot has finished.
     this.spinSelector.reset();
@@ -741,13 +746,16 @@ class SnookerGame {
         [FoulType.PUSH_STROKE]: '推杆犯规：出杆时推动贴球',
       };
       this.uiManager.showMessage(reasons[result.foul] ?? '犯规',
-        '罚 ' + result.penaltyPoints + ' 分给对手' + (result.freeBallAvailable ? ' · 对手获得自由球' : ''),
-        [{ text: '继续', onClick: () => { this.gameState.setState(nextState); this.afterEvaluation(result); } },
+        '罚 ' + result.penaltyPoints + ' 分给对手' + (result.freeBallAvailable ? ' · 对手获得自由球' : '') +
+          (finalBlack ? '\n最后黑球：按本杆后的比分判定胜负，平分则重置黑球。' :
+            result.replayBlockedByScore ? '\n本杆前或罚分后已超分，不能复位；仍可让犯规方从现有球位继续。' :
+            result.isMiss ? '\nFoul and a Miss：可保留罚分并复位重打（延分时也可复位）。' : ''),
+        [{ text: '继续', onClick: () => { this.gameState.acceptFoul(); this.gameState.setState(nextState); this.afterEvaluation(result); } },
           ...(!finalBlack ? [{ text: '让对方继续打（现有球位）', onClick: () => {
             this.gameState.requireOffenderToPlay(); this.afterEvaluation(result);
           } }] : []),
-          ...(result.isMiss ? [{ text: '复位重打', onClick: () => {
-            this.gameState.replayShot(this.ballRenderer.balls); this.enterAimingState();
+          ...(this.gameState.canReplayShot() ? [{ text: '复位重打', onClick: () => {
+            if (this.gameState.replayShot(this.ballRenderer.balls)) this.enterAimingState();
           } }] : [])]);
     } else this.afterEvaluation(result);
 
@@ -767,7 +775,9 @@ class SnookerGame {
 
     const state = this.gameState.getState();
 
-    if (state === GameState.FREE_BALL_SELECT) {
+    if (state === GameState.BLACK_CHOICE) {
+      this.enterBlackChoice();
+    } else if (state === GameState.FREE_BALL_SELECT) {
       this.enterBallChoice(true);
     } else if (state === GameState.PLACING) {
       this.enterPlacingState();
@@ -782,6 +792,25 @@ class SnookerGame {
         this.enterPlacingState();
       }
     }
+  }
+
+  private enterBlackChoice(): void {
+    const match = this.gameState.match!;
+    const chooser = match.frame.blackChoicePlayer!;
+    this.aimController.disable(); this.cueRenderer.hide(); this.guideLines.clear();
+    this.shotControls.setVisible(false); this.spinSelector.hide(); this.aiIsThinking = false;
+    const choose = (player: number) => {
+      if (this.gameState.chooseBlackStarter(player)) this.enterPlacingState();
+    };
+    const aiChooses = match.mode === GameMode.VS_AI && chooser === 1;
+    this.uiManager.showMessage('平分争黑 · 黑球重置',
+      `比分 ${match.frame.scores[0]} : ${match.frame.scores[1]}。抽签由 ${match.playerNames[chooser]} 获得选择权。` +
+      '\n先打者从 D 区手中球开球；首次进黑球或犯规即决定本局胜负。' +
+      (aiChooses ? '\nAI 选择自己先打。' : ''),
+      aiChooses ? [{ text: '继续', onClick: () => choose(1) }] : [
+        { text: '自己先打', onClick: () => choose(chooser) },
+        { text: '让对方先打', onClick: () => choose(1 - chooser) },
+      ]);
   }
 
   /** 放置状态更新 / Placing state update */

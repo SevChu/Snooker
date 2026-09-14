@@ -64,6 +64,7 @@ export enum GameState {
   PLACING = 'placing',
   /** 等待对手选择 (Miss 规则) / Waiting for opponent's choice (Miss rule) */
   MISS_CHOICE = 'miss_choice',
+  BLACK_CHOICE = 'black_choice',
   /** 自由球选择中 / Free ball selection */
   FREE_BALL_SELECT = 'free_ball_select',
   /** Frame result awaits the player's acknowledgement before re-racking. */
@@ -195,6 +196,8 @@ export interface ShotResult {
   switchTurn: boolean;
   /** 是否判 Miss / Whether a Miss is called */
   isMiss: boolean;
+  /** A foul cannot be replayed if either player needed penalty points before or after it. */
+  replayBlockedByScore?: boolean;
   /** 需要复位的彩球 / Colours that need re-spotting */
   needsRespot: BallType[];
   /** 白球是否 in-hand / Whether cue ball goes in-hand */
@@ -207,6 +210,8 @@ export interface ShotResult {
 
 /** 一局(frame)的状态 / Frame state */
 export interface FrameState {
+  respottedBlack?: boolean;
+  blackChoicePlayer?: number | null;
   freeBallAvailable?: boolean;
   nominatedFreeBall?: string | null;
   nominatedColour?: BallType | null;

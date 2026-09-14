@@ -106,6 +106,7 @@ test('replay keeps the awarded penalty and creates a separate visit for the offe
     totalFrames: 1, player1Name: '甲', player2Name: '乙' });
   const cue = new BallBody('cue', B.CUE, { x: 1, z: .8 }, world);
   new BallBody('red', B.RED, { x: 2, z: .8 }, world);
+  new BallBody('black', B.BLACK, { x: 2.5, z: 1.1 }, world);
   game.initBallStates(world.getBalls()); game.startShot(cue, world.getBalls());
   game.evaluateShot(world.getBalls(), cue);
   game.replayShot(world.getBalls());

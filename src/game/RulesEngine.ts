@@ -93,7 +93,8 @@ export class RulesEngine {
   }
   private snookeredByFreeBall(cue: BallBody, nominated: BallBody, on: BallType[], balls: BallBody[]): boolean {
     const active = balls.filter(b => b !== cue && b.isOnTable && !b.isPotted);
-    if (active.length === 2 && active.some(b => b.type === BallType.BLACK)) return false;
+    if (active.length === 2 && active.every(b => isColour(b.type)) &&
+        active.some(b => b.type === BallType.BLACK)) return false;
     const targets = active.filter(b => on.includes(b.type));
     const blockers = active.filter(b => !on.includes(b.type));
     if (!targets.length) return false;

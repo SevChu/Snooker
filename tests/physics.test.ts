@@ -3,6 +3,8 @@ import './advanced.test';
 import './pockets.test';
 import './touching.test';
 import './frame-results.test';
+import './endgame.test';
+import './spotting.test';
 import assert from 'node:assert/strict';
 import { PhysicsWorld } from '../src/physics/PhysicsWorld';
 import { BallBody } from '../src/physics/BallBody';

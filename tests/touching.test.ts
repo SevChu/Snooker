@@ -146,6 +146,8 @@ test('touching exemption never cancels a scratch or illegal colour pot', () => {
 
 test('touching nominated free ball counts as the ball on; touching a red alone cannot replace it', () => {
   const h = setup(B.BLACK); h.frame.nominatedFreeBall = h.object.id;
+  // Leave the actual red fully visible after playing away from the nominated black.
+  h.world.getBalls().find(b => b.type === B.RED)!.respawn(1, 1.3);
   begin(h, -.15); settle(h); assert.equal(result(h).foul, null);
   const push = setup(B.BLACK); push.frame.nominatedFreeBall = push.object.id;
   begin(push, .4); settle(push); assert.equal(result(push).penaltyPoints, 4);
@@ -157,8 +159,15 @@ test('touching nominated free ball counts as the ball on; touching a red alone c
 test('a tiny non-impact correction is not a push, and replay recalculates touching from restored balls', () => {
   const h = setup(); begin(h, -.15); h.object.posZ += 1e-8; settle(h);
   assert.equal(result(h).foul, null);
-  h.game.replayShot(h.world.getBalls()); begin(h, -.15); settle(h);
-  assert.equal(result(h).foul, null);
+  assert.equal(h.game.replayShot(h.world.getBalls()), false, 'a legal shot cannot be replaced');
+  const miss = setup(B.BLACK);
+  miss.world.getBalls().find(b => b.type === B.RED)!.respawn(1, 1.3);
+  begin(miss, -.15); settle(miss);
+  assert.equal(result(miss).isMiss, true);
+  assert.equal(miss.game.replayShot(miss.world.getBalls()), true);
+  begin(miss, -.15);
+  assert.ok(miss.game.shotTracker!.touching!.balls.some(b => b.id === miss.object.id));
+  settle(miss); assert.equal(result(miss).foul, FoulType.NO_CONTACT);
 });
 
 test('touching does not create a legal-contact exception for jumping over an object ball', () => {
